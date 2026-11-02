@@ -1,0 +1,15 @@
+{
+  "name": "park-busan",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": ["app", "server"],
+  "scripts": {
+    "dev:app": "npm run start --workspace @park-busan/app",
+    "dev:server": "npm run dev --workspace @park-busan/server",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "doctor": "cd app && npx expo-doctor",
+    "test:api": "powershell -ExecutionPolicy Bypass -File scripts/test-api.ps1"
+  },
+  "engines": { "node": ">=22.13.0" }
+}

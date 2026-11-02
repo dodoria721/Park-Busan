@@ -1,0 +1,1 @@
+export function getServerEnv(name: 'SUPABASE_URL' | 'SUPABASE_SERVICE_ROLE_KEY' | 'OPENAI_API_KEY'): string { const value = process.env[name]; if (!value) throw new Error(`Missing server environment variable: ${name}`); return value; }
