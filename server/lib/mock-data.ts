@@ -109,7 +109,7 @@ export const mockGeo: GeoProvider = {
     const q = query.replace(/\s/g, '');
     if (!q) return [];
     return PLACES.filter((p) => [p.name, ...p.aliases].some((n) => n.replace(/\s/g, '').includes(q))).map(
-      ({ aliases: _a, ...p }) => p,
+      ({ id, name, address, lat, lng }) => ({ id, name, address, lat, lng }),
     );
   },
 };

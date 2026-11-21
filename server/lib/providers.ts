@@ -39,10 +39,32 @@ export interface AIProvider {
 
 const env = process.env;
 
-export const parkingData: ParkingDataProvider =
-  env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY
-    ? supabaseParking(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY)
-    : mockParking;
+export type ParkingProviderName = 'mock' | 'supabase' | 'supabase-misconfigured';
+export interface ParkingProviderEnvironment {
+  SUPABASE_URL?: string;
+  SUPABASE_SECRET_KEY?: string;
+  SUPABASE_SERVICE_ROLE_KEY?: string;
+}
+
+function misconfiguredParking(): ParkingDataProvider {
+  const error = () => Promise.reject(new Error('Supabase parking environment is incomplete'));
+  return { listNear: error, getLot: error };
+}
+
+export function selectParkingProvider(source: ParkingProviderEnvironment): { provider: ParkingDataProvider; name: ParkingProviderName } {
+  const url = source.SUPABASE_URL?.trim();
+  const secret = source.SUPABASE_SECRET_KEY?.trim() || source.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  if (!url && !secret) return { provider: mockParking, name: 'mock' };
+  if (!url || !secret) return { provider: misconfiguredParking(), name: 'supabase-misconfigured' };
+  return { provider: supabaseParking(url, secret), name: 'supabase' };
+}
+
+const selectedParking = selectParkingProvider({
+  SUPABASE_URL: env.SUPABASE_URL,
+  SUPABASE_SECRET_KEY: env.SUPABASE_SECRET_KEY,
+  SUPABASE_SERVICE_ROLE_KEY: env.SUPABASE_SERVICE_ROLE_KEY,
+});
+export const parkingData = selectedParking.provider;
 
 export const live: LiveProvider =
   env.BUSAN_LIVE_API_URL && env.BUSAN_LIVE_API_KEY
@@ -55,7 +77,7 @@ export const ai: AIProvider =
   env.OPENAI_API_KEY && env.OPENAI_MODEL ? openAI(env.OPENAI_API_KEY, env.OPENAI_MODEL) : mockAI;
 
 export const providerNames = {
-  parking: parkingData === mockParking ? 'mock' : 'supabase',
+  parking: selectedParking.name,
   live: live === mockLive ? 'mock' : 'busan-public-api',
   geo: geo === mockGeo ? 'mock' : 'kakao',
   ai: ai === mockAI ? 'mock' : 'openai',

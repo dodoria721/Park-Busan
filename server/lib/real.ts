@@ -1,30 +1,14 @@
 // ⚠️ 미검증 코드: 실제 외부 서비스로 요청을 보내 확인한 적이 없습니다.
 // 환경 변수가 설정될 때만 선택됩니다(lib/providers.ts). 필드명·엔드포인트는 실제 문서와 대조 후 수정하세요.
-import type { LiveStatus, ParkingLot, Place } from '@parkbusan/shared';
-import type { AIProvider, GeoProvider, LiveProvider, ParkingDataProvider } from './providers.ts';
+import type { LiveStatus, Place } from '@parkbusan/shared';
+import type { AIProvider, GeoProvider, LiveProvider } from './providers.ts';
 import { templateExplanation } from './ai.ts';
+export { supabaseParking } from './supabase-parking.ts';
 
 async function getJson(url: string, init?: RequestInit): Promise<unknown> {
   const res = await fetch(url, init);
   if (!res.ok) throw new Error(`${new URL(url).host} ${res.status}`);
   return res.json();
-}
-
-/** 미검증: Supabase REST. parking_lots 테이블(또는 뷰)이 ParkingLot과 같은 모양의 JSON을 준다고 가정. */
-export function supabaseParking(url: string, key: string): ParkingDataProvider {
-  const headers = { apikey: key, Authorization: `Bearer ${key}` };
-  return {
-    // ponytail: 반경 쿼리 없이 전체를 받아 Recommender가 거른다. 데이터가 커지면 PostGIS RPC로 교체.
-    async listNear() {
-      return (await getJson(`${url}/rest/v1/parking_lots?select=*`, { headers })) as ParkingLot[];
-    },
-    async getLot(id) {
-      const rows = (await getJson(`${url}/rest/v1/parking_lots?select=*&id=eq.${encodeURIComponent(id)}`, {
-        headers,
-      })) as ParkingLot[];
-      return rows[0] ?? null;
-    },
-  };
 }
 
 /**
