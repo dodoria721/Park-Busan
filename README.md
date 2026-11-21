@@ -38,7 +38,8 @@ npm run test:api
 ## 환경변수와 보안
 
 - 앱에는 공개 가능한 `EXPO_PUBLIC_API_URL`만 둡니다.
-- `OPENAI_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`는 서버 환경변수로만 관리합니다.
+- `OPENAI_API_KEY`, `SUPABASE_SECRET_KEY`는 서버 환경변수로만 관리합니다.
+- Supabase 프로젝트 URL과 Secret Key는 Vercel의 서버 환경변수로 설정합니다.
 - 실제 `.env`, `.env.local`은 Git에서 제외됩니다.
 - 초기 DB 테이블은 RLS를 활성화하고 공개 정책을 만들지 않아 서버 전용 접근을 기본값으로 삼습니다.
 
