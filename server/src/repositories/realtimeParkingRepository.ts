@@ -1,5 +1,5 @@
-import { getServerEnv } from '../lib/env';
-import type { ParkingLot, ParkingRepository } from '../types/parking';
+import { getServerEnv } from '../lib/env.ts';
+import type { ParkingLot, ParkingRepository } from '../types/parking.ts';
 
 function count(value: unknown): number | null {
   if (value === null || value === undefined || value === '') return null;
@@ -27,12 +27,21 @@ function toParkingLot(value: unknown): ParkingLot {
 }
 
 export class RealtimeParkingRepository implements ParkingRepository {
-  constructor(private readonly request: typeof fetch = fetch) {}
+  private readonly request: typeof fetch;
+  private readonly config?: { url: string; key: string };
+
+  constructor(
+    request: typeof fetch = fetch,
+    config?: { url: string; key: string },
+  ) {
+    this.request = request;
+    this.config = config;
+  }
 
   private async load(code?: string): Promise<ParkingLot[]> {
-    const url = new URL(getServerEnv('PARKING_REALTIME_URL'));
+    const url = new URL(this.config?.url ?? getServerEnv('PARKING_REALTIME_URL'));
     if (code !== undefined) url.searchParams.set('code', code);
-    const key = process.env.SUPABASE_PUBLISHABLE_KEY?.trim() || getServerEnv('SUPABASE_SECRET_KEY');
+    const key = this.config?.key ?? (process.env.SUPABASE_PUBLISHABLE_KEY?.trim() || getServerEnv('SUPABASE_SECRET_KEY'));
     const response = await this.request(url, {
       headers: { apikey: key, Accept: 'application/json' },
       cache: 'no-store', signal: AbortSignal.timeout(15000),

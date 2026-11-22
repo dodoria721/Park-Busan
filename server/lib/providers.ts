@@ -5,6 +5,7 @@ import { mockAI } from './mock-ai.ts';
 import { mockGeo, mockLive, mockParking } from './mock-data.ts';
 import { kakaoGeo, openAI, publicLive, supabaseParking } from './real.ts';
 import { logError, withTimeout } from './http.ts';
+import { createRealtimeProviders } from './realtime-parking.ts';
 
 export interface ParkingDataProvider {
   /** 반경 안의 후보. 최종 거리 필터는 Recommender가 다시 적용한다. */
@@ -39,11 +40,13 @@ export interface AIProvider {
 
 const env = process.env;
 
-export type ParkingProviderName = 'mock' | 'supabase' | 'supabase-misconfigured';
+export type ParkingProviderName = 'mock' | 'supabase' | 'supabase-misconfigured' | 'edge-function' | 'edge-function-misconfigured';
 export interface ParkingProviderEnvironment {
   SUPABASE_URL?: string;
   SUPABASE_SECRET_KEY?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
+  PARKING_REALTIME_URL?: string;
+  SUPABASE_PUBLISHABLE_KEY?: string;
 }
 
 function misconfiguredParking(): ParkingDataProvider {
@@ -51,7 +54,14 @@ function misconfiguredParking(): ParkingDataProvider {
   return { listNear: error, getLot: error };
 }
 
-export function selectParkingProvider(source: ParkingProviderEnvironment): { provider: ParkingDataProvider; name: ParkingProviderName } {
+export function selectParkingProvider(source: ParkingProviderEnvironment): { provider: ParkingDataProvider; name: ParkingProviderName; live?: LiveProvider } {
+  const realtimeUrl = source.PARKING_REALTIME_URL?.trim();
+  if (realtimeUrl) {
+    const key = source.SUPABASE_PUBLISHABLE_KEY?.trim() || source.SUPABASE_SECRET_KEY?.trim() || source.SUPABASE_SERVICE_ROLE_KEY?.trim();
+    if (!key) return { provider: misconfiguredParking(), name: 'edge-function-misconfigured' };
+    const realtime = createRealtimeProviders(realtimeUrl, key);
+    return { provider: realtime.parking, live: realtime.live, name: 'edge-function' };
+  }
   const url = source.SUPABASE_URL?.trim();
   const secret = source.SUPABASE_SECRET_KEY?.trim() || source.SUPABASE_SERVICE_ROLE_KEY?.trim();
   if (!url && !secret) return { provider: mockParking, name: 'mock' };
@@ -63,13 +73,15 @@ const selectedParking = selectParkingProvider({
   SUPABASE_URL: env.SUPABASE_URL,
   SUPABASE_SECRET_KEY: env.SUPABASE_SECRET_KEY,
   SUPABASE_SERVICE_ROLE_KEY: env.SUPABASE_SERVICE_ROLE_KEY,
+  PARKING_REALTIME_URL: env.PARKING_REALTIME_URL,
+  SUPABASE_PUBLISHABLE_KEY: env.SUPABASE_PUBLISHABLE_KEY,
 });
 export const parkingData = selectedParking.provider;
 
-export const live: LiveProvider =
+export const live: LiveProvider = selectedParking.live ?? (
   env.BUSAN_LIVE_API_URL && env.BUSAN_LIVE_API_KEY
     ? publicLive(env.BUSAN_LIVE_API_URL, env.BUSAN_LIVE_API_KEY)
-    : mockLive;
+    : mockLive);
 
 export const geo: GeoProvider = env.KAKAO_REST_API_KEY ? kakaoGeo(env.KAKAO_REST_API_KEY) : mockGeo;
 
@@ -78,7 +90,7 @@ export const ai: AIProvider =
 
 export const providerNames = {
   parking: selectedParking.name,
-  live: live === mockLive ? 'mock' : 'busan-public-api',
+  live: selectedParking.live ? 'edge-function' : live === mockLive ? 'mock' : 'busan-public-api',
   geo: geo === mockGeo ? 'mock' : 'kakao',
   ai: ai === mockAI ? 'mock' : 'openai',
 };
@@ -87,7 +99,7 @@ export const LIVE_WARNING = '실시간 주차 정보를 불러오지 못했습�
 
 /**
  * 실시간 조회(제한 시간 1.5초). 실패하면 null을 돌려 "확인 불가" + 경고로 처리한다(FR-017).
- * ponytail: 계획서의 TTL 30초 캐시는 생략. 실제 API 호출량이 문제 되면 id별 Map 캐시를 추가.
+ * Edge Function Provider는 목록·상세와 함께 최대 30초의 응답 캐시를 공유한다.
  */
 export async function fetchLive(lots: ParkingLot[]): Promise<Record<string, LiveStatus> | null> {
   const ids = lots.filter((l) => l.liveSupported).map((l) => l.id);

@@ -1,5 +1,5 @@
-import catalogue from '../data/parking-locations.json';
-import type { ParkingLot } from '../types/parking';
+import catalogue from '../data/parking-locations.json' with { type: 'json' };
+import type { ParkingLot } from '../types/parking.ts';
 
 function normalizeName(name: string) { return name.normalize('NFKC').replace(/[\s,·()]/g, '').toLowerCase(); }
 
