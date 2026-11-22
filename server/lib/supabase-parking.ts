@@ -174,7 +174,7 @@ function queryUrl(baseUrl: string, id?: string): URL {
     url.searchParams.set('id', `eq.${id}`);
     url.searchParams.set('limit', '1');
   } else {
-    url.searchParams.set('order', 'name.asc');
+    url.searchParams.set('order', 'name.asc,id.asc');
   }
   return url;
 }
@@ -182,7 +182,15 @@ function queryUrl(baseUrl: string, id?: string): URL {
 export function supabaseParking(baseUrl: string, secretKey: string, fetcher: FetchLike = fetch): ParkingDataProvider {
   return {
     async listNear() {
-      const rows = await readRows(fetcher, queryUrl(baseUrl), secretKey);
+      const rows: SupabaseParkingLotRow[] = [];
+      const url = queryUrl(baseUrl);
+      url.searchParams.set('limit', '1000');
+      while (true) {
+        url.searchParams.set('offset', String(rows.length));
+        const page = await readRows(fetcher, url, secretKey);
+        if (page.length === 0) break;
+        rows.push(...page);
+      }
       return rows.map((row) => mapSupabaseParkingLot(row));
     },
     async getLot(id) {
