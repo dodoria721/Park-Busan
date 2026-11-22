@@ -4,7 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { session } from '../../session';
+import { clearHistory, session } from '../../session';
 import { Mascot, s } from '../../ui';
 import { color, font, radius, shadow } from '../../theme';
 
@@ -34,7 +34,7 @@ export default function MoreTab() {
           label: '검색 기록 삭제',
           value: count ? `${count}건` : '기록 없음',
           onPress: () => {
-            session.history = [];
+            clearHistory();
             setCount(0);
           },
         },

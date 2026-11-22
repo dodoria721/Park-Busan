@@ -1,11 +1,12 @@
 // UI-02 결과 목록 + UI-03 지도 + UI-05 후속 질의 (Figma 04·05·08)
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router, Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatMinutes, type Place, type SearchConditions } from '@parkbusan/shared';
 import { api, errorMessage } from '../api';
-import { runRecommend, session } from '../session';
+import { refreshRecommend, runRecommend, session } from '../session';
+import { useAutoRefresh } from '../use-auto-refresh';
 import { Button, Card, Chip, Mascot, Notice, PlacePicker, s } from '../ui';
 import { color, font, shadow } from '../theme';
 import ResultMap from '../components/ResultMap';
@@ -26,22 +27,35 @@ export default function Results() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: 'info' | 'warn' | 'error'; text: string } | null>(null);
   const [pending, setPending] = useState<{ c: SearchConditions; places: Place[] } | null>(null);
-  const [reason, setReason] = useState<string | null>(null);
+  const [reason, setReason] = useState<{ lotId: string; text: string } | null>(null);
+  const [refreshError, setRefreshError] = useState<string | null>(session.refreshError);
+
+  const refresh = useCallback(async () => {
+    try {
+      const updated = await refreshRecommend();
+      if (updated) setResult(updated);
+      setRefreshError(null);
+    } catch (error) {
+      setRefreshError(`자동 갱신에 실패했습니다. 마지막 정상 결과를 표시합니다. ${errorMessage(error)}`);
+    }
+  }, []);
+  useAutoRefresh(refresh);
 
   const top = result?.top[0];
+  const topId = top?.lot.id;
+  const currentReason = reason && reason.lotId === topId ? reason.text : null;
   // FR-013: 목록을 먼저 보여 준 뒤 1순위 추천 이유를 따로 요청한다.
   useEffect(() => {
-    setReason(null);
-    if (!top || !place || !conditions?.durationMinutes) return;
+    if (!topId || !place || !conditions?.durationMinutes) return;
     let alive = true;
     api
-      .explain({ lotId: top.lot.id, destination: place, durationMinutes: conditions.durationMinutes, budget: conditions.budget })
-      .then((r) => alive && setReason(r.text))
-      .catch(() => alive && setReason('추천 이유를 불러오지 못했습니다.'));
+      .explain({ lotId: topId, destination: place, durationMinutes: conditions.durationMinutes, budget: conditions.budget })
+      .then((r) => alive && setReason({ lotId: topId, text: r.text }))
+      .catch(() => alive && setReason({ lotId: topId, text: '추천 이유를 불러오지 못했습니다.' }));
     return () => {
       alive = false;
     };
-  }, [top?.lot.id, place, conditions]);
+  }, [topId, place, conditions]);
 
   if (!result || !conditions || !place) {
     // UC-002 2a
@@ -112,6 +126,7 @@ export default function Results() {
         </View>
 
         {result.liveWarning && <Notice kind="warn" text={result.liveWarning} />}
+        {refreshError && <Notice kind="warn" text={refreshError} />}
 
         {empty ? (
           // FR-016 (Figma 08)
@@ -138,7 +153,7 @@ export default function Results() {
         {view === 'list' ? (
           <>
             {list.map((c, i) => (
-              <LotCard key={c.lot.id} c={c} rank={i + 1} feeLabel={feeLabel} reason={i === 0 ? reason : undefined} />
+              <LotCard key={c.lot.id} c={c} rank={i + 1} feeLabel={feeLabel} reason={i === 0 ? currentReason : undefined} />
             ))}
             {result.all.length > result.top.length && (
               <Button

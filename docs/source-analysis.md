@@ -1,49 +1,42 @@
-# SW_Project 분석
+# 원본 및 레거시 프론트엔드 분석
 
-분석 기준: `sjun129/SW_Project` 공개 저장소의 `main` 브랜치, 2026-11-02 확인. 원본은 임시 폴더에 복제해 읽기만 했으며 수정하지 않았다. 로컬 작업 공간에는 별도의 SRS/SDD/개발계획서가 없어서 사용자가 제공한 요청문을 확정 범위로 사용했다.
+## SW_Project 참고 범위
 
-## 실제 구조와 기술
+초기 구조 설계 당시 `sjun129/SW_Project`의 Expo Router 구성, TypeScript strict 설정, 공용 테마와 컴포넌트 분리 원칙을 참고했다. 여기서 언급하는 `SW_Project/app/`은 참고 저장소의 경로이며 현재 ParkBusan의 로컬 `app/`을 뜻하지 않는다.
 
-- `app/`: Expo 앱. `src/app/` 아래 Expo Router 화면, `src/ui.tsx`, `src/theme.ts`, `src/store.tsx`, `src/lib/*`로 구성된다.
-- `supabase/migrations/`: 임대차, 사진, 리포트, 결제 방어, 실시간 이벤트 관련 마이그레이션이 있다.
-- `supabase/functions/vision/`: OpenAI 기반 이미지 분석 Edge Function이 있다.
-- `assets/`, `design-refs/`, `logo/`: 기존 서비스 전용 브랜드/화면 자료다.
-- Expo SDK 58 (`expo ^58.0.22`), React Native 0.88.1, React 19.3.0, Expo Router 58, TypeScript 6 strict mode를 사용한다.
-- `main: expo-router/entry`, `src/app/_layout.tsx`의 `Stack`, `(tabs)/_layout.tsx`의 `Tabs`를 사용한다.
-- 앱의 `src/lib/supabase.ts`가 `EXPO_PUBLIC_SUPABASE_URL`과 publishable key로 Supabase 클라이언트를 생성한다. 서버 비밀은 Edge Function 시크릿으로 관리한다.
-- 공통 디자인은 `src/theme.ts`, UI는 `src/ui.tsx`, 상태/데모 전환은 `src/store.tsx`에 집중되어 있다.
+ParkBusan에 필요하지 않은 인증, 결제, 리포트, 이미지 분석, Storage·Realtime 기능은 복사하지 않았다. 서버 비밀키를 모바일에 두지 않고 모바일이 Next.js API를 호출하는 구조를 유지했다.
 
-## 재사용 판단
+## test 브랜치의 레거시 app 분석
 
-### 그대로 재사용 가능한 원칙
+통합 커밋 `5316c4a571e817df8646362a373816744e26c2fb`에 포함된 별도 Expo 앱은 다음 기능을 가지고 있었다.
 
-- `app/tsconfig.json`: `expo/tsconfig.base`, strict 모드, `@/*` 경로 별칭 패턴.
-- `app/package.json`: SDK 58에 맞춘 Expo/React/React Native 핵심 버전 조합.
-- `app/src/app/_layout.tsx`: Expo Router Stack 기반 화면 구성 방식.
-- 공개 앱 환경변수에는 `EXPO_PUBLIC_*`만 사용하고 서버 키를 앱에 두지 않는 원칙.
+- `/api/parking` 목록 조회와 프론트엔드 검색·정렬
+- Context 기반 목록 공유
+- 60초 주기 갱신과 마지막 정상 데이터 유지
+- Web Kakao 지도와 네이티브 WebView 지도
+- 별도 Repository/Service 및 주차장 타입
 
-코드를 복사하기보다 위 설정과 패턴만 ParkBusan 이름/폴더에 맞게 다시 작성했다.
+## 이전 판단
 
-### 일부 수정 후 재사용
+### mobile로 이전
 
-- `app/app.json`: Router 플러그인과 managed workflow 설정은 유지하되 기존 브랜드, 카메라, 이미지 선택 권한과 플러그인은 제거했다.
-- `app/src/theme.ts`, `app/src/ui.tsx`: StyleSheet 기반 토큰/공통 컴포넌트 접근은 유지하되 ParkBusan 색상과 작은 책임별 컴포넌트로 분리했다.
-- `app/src/lib/supabase.ts`: 환경변수 방식은 참고했지만 초기 앱이 DB에 직접 접근하지 않고 API 서버를 호출하도록 변경했다.
+- 60초 자동 갱신의 유용한 동작
+  - 활성 화면에서만 실행
+  - 백그라운드 중지 및 복귀 즉시 갱신
+  - 중복 요청 방지
+  - 이전 응답 경합 방지
+  - 실패 시 마지막 정상 결과 유지
 
-### ParkBusan에 필요하지 않음
+이 기능은 기존 `mobile/src/api.ts`와 `/api/recommend`, `/api/parking-lots/[id]` 계약 위에 다시 구현했다.
 
-- 로그인/임대차/촬영/하자 태깅/임대인 확인/리포트/PDF/결제/알림 화면과 상태 관리.
-- 카메라, 이미지 선택, 파일 시스템, 알림, 출력, 공유, 암호화, AsyncStorage, 앱 내 Supabase 클라이언트 의존성.
-- 기존 `supabase` 임대차 스키마, Storage, Realtime, vision Edge Function.
-- 기존 브랜드 이미지, 폰트, 디자인 참조 자료와 HTML 프로토타입.
+### 이전하지 않음
 
-### 새로 필요한 구조
+- 별도 Repository/Service: 현재 API 모듈과 역할이 중복되고 타입 체계를 이원화한다.
+- 클라이언트 추천·요금·거리 정렬: `shared/`와 서버의 책임을 중복하고 서버 API 계약과 충돌한다.
+- Mock과 실제 응답 혼용: 연결 실패를 숨길 수 있어 사용하지 않는다.
+- WebView 지도: `react-native-maps`보다 기능상 이점이 없고 별도 웹 앱 주소와 의존성이 필요하다.
+- 레거시 화면·디자인 시스템: 공식 `mobile/`의 검색, 결과, 지도, 상세 흐름과 중복된다.
 
-- 주차장 검색/결과/지도/상세/후속 조건 UI.
-- API Controller, 주차장 Repository 인터페이스와 서비스 계층.
-- 자연어 파서, 지오코딩/거리, 요금 계산, 추천, 실시간 공급자, 설명 AI를 위한 교체 가능한 서비스 경계.
-- 주차장/요금/원천 매핑/적재 실행 DB 테이블과 데이터 적재 도구.
+## 최종 결정
 
-## 호환성 판단
-
-Expo SDK 58은 React Native 0.88, React 19.3, 최소 Node 22.13을 대상으로 한다. 원본의 최신 핵심 버전 조합을 채택하되, 초기 범위에 필요 없는 네이티브 모듈은 설치하지 않았다. 지도 라이브러리는 Expo Go 58 실기기 검증 전까지 도입하지 않고 좌표 기반 골격으로 남겼다.
+공식 프론트엔드는 `mobile/` 하나다. 레거시 `app/`은 가치 있는 갱신 동작을 이식한 뒤 제거했으며, 호환을 위해 추가된 서버 API와 Provider는 그대로 유지한다.

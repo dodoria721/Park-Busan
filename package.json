@@ -4,19 +4,16 @@
   "workspaces": [
     "shared",
     "server",
-    "mobile",
-    "app"
+    "mobile"
   ],
   "scripts": {
     "dev:server": "npm run dev -w server",
     "dev:app": "npm run web -w mobile",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "npm test -w shared && npm test -w server",
-    "dev:legacy-app": "npm run start -w @park-busan/app",
+    "test": "npm test -w shared && npm test -w server && npm test -w mobile",
     "lint": "npm run lint --workspaces --if-present",
-    "doctor": "cd app && npx expo-doctor",
+    "doctor": "cd mobile && npx expo-doctor",
     "test:api": "powershell -ExecutionPolicy Bypass -File scripts/test-api.ps1",
-    "test:search": "node --experimental-strip-types --test scripts/filter-parking.test.mjs",
     "sync:locations": "node scripts/sync-parking-locations.mjs"
   },
   "engines": {

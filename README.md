@@ -1,154 +1,78 @@
-# 파크부산(ParkBusan) 프로토타입
+# ParkBusan
 
-부산 공영주차장을 목적지·주차 시간·예산으로 추천하는 모바일 앱의 프로토타입입니다.
-요구사항은 `docs/SRS.txt`, `docs/SDD.txt`, `docs/개발계획서.txt`를 따릅니다.
+부산 공영주차장을 목적지, 주차 시간, 예산에 따라 추천하는 npm workspace 모노레포입니다.
 
-> 외부 연동 설정이 없으면 가상(Mock) 데이터를 사용합니다. `PARKING_REALTIME_URL`과 Supabase 키가 설정되면 실제 주차장·잔여 면수를 사용하며, 카카오 키가 있으면 실제 목적지를 검색합니다.
-> 실시간 원본에 없는 요금·운영시간은 추정하지 않습니다. 예산 조건이 있으면 요금 미제공 주차장은 ‘요금 확인 필요’ 목록에 표시됩니다.
-> AI도 기본값은 정규식 규칙으로 동작하는 Mock이며, 실제 LLM이 아닙니다.
+## 프로젝트 구조
 
-## 실행 방법
+```text
+mobile/   Expo SDK 58 + Expo Router 공식 프론트엔드
+server/   Next.js Route Handler 기반 API 서버
+shared/   모바일과 서버가 공유하는 타입·요금·거리·추천 로직
+docs/     요구사항, 설계 및 개발 문서
+supabase/ DB 스키마와 Edge Function 자료
+scripts/  데이터 검증 및 운영 보조 도구
+```
 
-Node 24 기준입니다.
+프론트엔드는 `mobile/` 하나만 사용합니다. 과거 `test` 브랜치의 별도 Expo 앱이었던 `app/`은 기능 검토 후 제거했습니다.
+
+## 실행
+
+Node.js 22.13 이상을 권장합니다.
 
 ```bash
-npm install            # 루트에서 한 번
-npm run dev:server     # API 서버 http://localhost:3000
-npm run dev:app        # 앱(웹) http://localhost:8081  (Expo, 다른 터미널에서)
-npm run typecheck      # shared·server·mobile 타입 검사
-npm test               # 요금 계산·추천·마스킹·조건 추출 단위 테스트 (node:test)
+npm install
+copy mobile\.env.example mobile\.env
+copy server\.env.example server\.env.local
+npm run dev:server
+npm run dev:app
 ```
 
-- 앱이 부를 서버 주소는 `EXPO_PUBLIC_API_URL`로 지정합니다(기본 `http://localhost:3000`, `mobile/.env.example` 참고).
-  Android 에뮬레이터는 `http://10.0.2.2:3000`, 실기기는 PC의 LAN IP를 사용합니다.
-- 네이티브(Expo Go 등)는 `npm run start -w mobile`로 띄웁니다. 이번 작업에서는 웹만 확인했습니다.
-- 실시간 조회 실패(FR-017)를 시연하려면 서버를 `MOCK_LIVE_FAIL=1`로 실행합니다.
+- 웹에서 서버는 기본 `http://localhost:3000`, Expo는 `http://localhost:8081`을 사용합니다.
+- Android 에뮬레이터의 서버 주소는 일반적으로 `http://10.0.2.2:3000`입니다.
+- 실기기는 PC와 같은 네트워크에 연결하고 `EXPO_PUBLIC_API_URL`에 PC의 LAN 주소를 설정합니다.
+- 서버 비밀키는 `server/.env.local`에만 두며 모바일의 `EXPO_PUBLIC_*` 변수에 넣지 않습니다.
 
-### API 예시
+## 주요 API 계약
+
+| 경로 | 역할 |
+| --- | --- |
+| `GET /api/health` | 활성 Provider 상태 확인 |
+| `POST /api/parse` | 자연어 검색 조건 추출 및 후속 조건 병합 |
+| `GET /api/places?q=` | 카카오 장소 후보 검색 |
+| `POST /api/recommend` | 거리·요금·실시간 상태 기반 추천 |
+| `GET /api/parking-lots/[id]` | 주차장 상세, 예상 요금, 실시간 상태 |
+| `POST /api/explain` | 서버 계산 결과에 근거한 추천 설명 |
+
+통합 과정에서 추가된 `GET /api/parking`, `GET /api/parking/[id]` 및 Edge Function 경로도 호환 목적으로 서버에 유지합니다. 공식 모바일 앱은 위 핵심 계약을 사용합니다.
+
+## 프론트엔드 동작
+
+- 자연어 검색, 조건 확인·수정, 목적지 선택, 추천 목록, 지도, 상세, 후속 검색을 제공합니다.
+- Web 지도는 `ResultMap.web.tsx`와 Kakao Maps JavaScript SDK를 사용합니다.
+- Android/iOS 지도는 `ResultMap.tsx`와 `react-native-maps`를 사용합니다.
+- 추천 결과와 상세 정보는 화면이 보이고 앱이 활성 상태일 때만 60초마다 갱신합니다.
+- 갱신 중 기존 결과와 검색·필터·지도 선택 상태를 유지합니다. 실패 시 마지막 정상 결과를 보존합니다.
+- 동일 요청은 합치고, 검색 조건이 바뀐 뒤 도착한 이전 응답은 적용하지 않습니다.
+- 실시간 정보가 없거나 매핑되지 않은 주차장에는 잔여 면수를 생성하지 않습니다.
+
+## Provider와 데이터 안전성
+
+- Supabase, 부산시설공단 실시간 API, 카카오 REST API 설정은 서버 전용입니다.
+- 실제 Provider가 선택된 뒤 조회가 실패해도 Mock으로 자동 전환하지 않습니다.
+- `ParkingLot.id`는 Supabase UUID를 유지하며 시설공단 코드는 별도 `liveSourceId`로 연결합니다.
+- 실시간 Provider 응답은 서버에서 최대 30초 캐시됩니다. 모바일의 60초 갱신 주기는 이 캐시보다 길게 유지합니다.
+- 누락된 요금, 좌표, 실시간 값은 임의로 만들지 않습니다.
+
+## 검증 명령
 
 ```bash
-curl localhost:3000/api/health
-curl -X POST localhost:3000/api/parse -H "Content-Type: application/json" \
-  --data-binary '{"query":"서면역 근처에서 2시간 주차하고 5천 원 이하"}'
-curl "localhost:3000/api/places?q=서면"
-curl -X POST localhost:3000/api/recommend -H "Content-Type: application/json" \
-  -d '{"destination":{"lat":35.1578,"lng":129.06},"durationMinutes":120,"budget":5000}'
-curl "localhost:3000/api/parking-lots/sm-01?minutes=120&lat=35.1578&lng=129.06"
-curl -X POST localhost:3000/api/explain -H "Content-Type: application/json" \
-  -d '{"lotId":"sm-01","destination":{"lat":35.1578,"lng":129.06},"durationMinutes":120,"budget":5000}'
+npm run typecheck
+npm test
+npm run lint
+npm run doctor
+npm run build -w server
 ```
 
-Windows Git Bash에서 한글 JSON을 `-d`로 보내면 인코딩이 깨질 수 있습니다. UTF-8 파일을 만들어 `--data-binary @file.json`으로 보내세요.
+실행 중인 로컬 서버의 호환 API 점검은 `npm run test:api`로 수행할 수 있습니다.
 
-오류 응답은 모두 `{ "error": { "code": "...", "message": "..." } }` 형식입니다.
-
-| 엔드포인트 | 설명 |
-| --- | --- |
-| `GET /api/health` | 상태와 사용 중인 Provider(mock/실제) |
-| `POST /api/parse` | `{ query, previous? }` → `{ conditions, changed }`. 개인정보 마스킹 → 추출 → 스키마 검증(실패 시 1회 재시도) → 이전 조건과 병합. 실패 시 502 `AI_PARSE_FAILED`(직접 입력 안내) |
-| `GET /api/places?q=` | 목적지 후보 목록 |
-| `POST /api/recommend` | `{ destination:{lat,lng}, durationMinutes, budget\|null }` → `{ top, all, needsCheck, excluded, liveWarning }` |
-| `GET /api/parking-lots/:id` | 상세. `minutes`, `lat`, `lng`를 주면 예상 요금·거리 포함 |
-| `POST /api/explain` | `{ lotId, destination, durationMinutes, budget }` → `{ text, fallback }`. 서버가 다시 계산한 값만 근거로 사용 |
-
-## 구조
-
-```
-shared/   요청·응답 타입과 순수 도메인 로직 (앱·서버 공용)
-  src/fee.ts          Fee Calculator (COMP-07)
-  src/recommend.ts    Recommender (COMP-08), 실시간 유효성 판정
-  src/geo.ts          haversine 거리
-  src/mask.ts         개인정보 마스킹
-  src/format.ts       화면 표시 문구("정보 없음", "확인 불가" 등)
-server/   Next.js App Router Route Handlers (API 전용, 화면 없음)
-  app/api/*           API Controller (COMP-03)
-  lib/providers.ts    Provider 인터페이스와 환경 변수 기반 선택
-  lib/mock-data.ts    Mock 주차장 20곳·실시간·목적지 (가상 데이터)
-  lib/mock-ai.ts      규칙 기반 Mock AIProvider
-  lib/real.ts         Supabase·부산시설공단·카카오·OpenAI 구현 자리 (미검증)
-  lib/ai.ts           조건 스키마 검증, 재시도, 설명 근거 검사
-  lib/http.ts         표준 오류 응답, 타임아웃, 로그
-  proxy.ts            CORS
-mobile/   Expo(SDK 58) + Expo Router + TypeScript
-  src/app/index.tsx       UI-01 메인/질의, 조건 확인·수정, 직접 입력
-  src/app/results.tsx     UI-02 목록, UI-03 지도 전환, UI-05 후속 질의
-  src/app/lot/[id].tsx    UI-04 상세, 길찾기
-  src/components/ResultMap(.web).tsx  네이티브 react-native-maps / 웹 대체 표시
-```
-
-### Provider 선택 (NFR-007~008)
-
-`server/.env.example`의 값이 모두 채워진 Provider만 실제 구현으로 바뀌고, 비어 있으면 Mock으로 동작합니다.
-실제 구현(`server/lib/real.ts`)은 외부 서비스에 요청해 본 적이 없는 **미검증 코드**입니다. 비밀 키는 서버 환경 변수에만 두고, 앱에는 `EXPO_PUBLIC_API_URL`만 둡니다.
-
-## 요구사항 대응표
-
-| 요구사항 | 구현 위치 |
-| --- | --- |
-| FR-001 자연어 입력 | `mobile/src/app/index.tsx` |
-| FR-002 조건 추출 | `server/app/api/parse`, `server/lib/ai.ts`, `server/lib/mock-ai.ts` |
-| FR-003 조건 확인·수정 | `mobile/src/app/index.tsx` (분석 결과를 폼에 채움) |
-| FR-004 목적지 검색·선택 | `server/app/api/places`, `mobile/src/ui.tsx` `PlacePicker` |
-| FR-005 반경 2km | `shared/src/recommend.ts` (`RADIUS_M`) |
-| FR-006 목록 표시 | `mobile/src/app/results.tsx` |
-| FR-007 상세 | `server/app/api/parking-lots/[id]`, `mobile/src/app/lot/[id].tsx` |
-| FR-008 요금 계산 | `shared/src/fee.ts` |
-| FR-009 예산 필터·계산 불가 구분 | `shared/src/recommend.ts` (`needsCheck`) |
-| FR-010 실시간 면수·갱신 시각 | `shared/src/recommend.ts` `toLiveView`, `shared/src/format.ts` |
-| FR-011 누락 표시 | `shared/src/format.ts`, 상세·목록 화면 |
-| FR-012 추천 정렬 | `shared/src/recommend.ts` (거리 → 요금 → ID, 상위 5개) |
-| FR-013 추천 이유 | `server/app/api/explain`, `server/lib/ai.ts` `explainWithFallback` |
-| FR-014 지도 마커 | `mobile/src/components/ResultMap.tsx`, `ResultMap.web.tsx` |
-| FR-015 길찾기 | `mobile/src/app/lot/[id].tsx` (카카오맵 앱 → 웹 URL) |
-| FR-016 결과 없음 | `mobile/src/app/results.tsx` |
-| FR-017 실시간 API 오류 | `server/lib/providers.ts` `fetchLive`(1.5초 제한), `liveWarning` |
-| FR-018 AI 오류 → 직접 입력 | `server/app/api/parse`, `mobile/src/app/index.tsx` |
-| FR-019 후속 질의 | `server/app/api/parse`(`previous` 병합), `mobile/src/app/results.tsx` |
-| NFR-004 키 비노출 | 서버 환경 변수, `.env.example`만 제공 |
-| NFR-005 3탭 이내 | 결과 카드 1탭 → 상세 |
-| NFR-007~008 Provider 분리 | `server/lib/providers.ts` |
-| AI-REQ-01 근거 기반 설명 | `server/lib/ai.ts` `isGrounded`(사실에 없는 숫자가 있으면 정형 문구) |
-| AI-REQ-03 마스킹 | `shared/src/mask.ts`, `extractWithRetry`에서 AI 호출 전 적용 |
-| AI-REQ-05 다단계 파이프라인 | parse → places → recommend → explain 분리 |
-| AI-REQ-07 스키마 검증·1회 재시도 | `server/lib/ai.ts` `validateConditions`, `extractWithRetry` |
-
-테스트: `shared/src/*.test.ts`(요금·추천 경계값, 마스킹), `server/lib/ai.test.ts`(조건 추출, 재시도, 근거 검사).
-
-## Mock 데이터에 넣은 예외 사례
-
-`server/lib/mock-data.ts`에 서면 8곳, 남포동 6곳, 해운대 6곳이 있습니다.
-
-- 요금 누락(`sm-04`, `np-06`, `hd-06`), 추가요금 누락(`np-04`), 무료(`sm-06`, `hd-05`)
-- 실시간 미제공(`sm-03`, `sm-06`, `np-03`, `np-06`, `hd-03`), 응답 누락 → 확인 불가(`hd-06`)
-- 유효한 만차(`sm-02`, `hd-02`), 5분 넘은 정보(`sm-05`, `np-05`), 갱신 시각 없음(`sm-07`)
-- 반경 밖(`sm-08`, 서면역 기준), 주변 주차장이 없는 목적지(`태종대`)
-- 목적지 후보가 2개인 질의: `서면`, `해운대`
-
-## 범위 제외
-
-- 안내판 이미지 해석(VLM/OCR)
-- 관리자 화면·인증
-- 실제 데이터 적재 스크립트(COMP-12)
-- 예약·결제
-- APK 빌드, 서버·앱 배포
-- Supabase DB 직접 조회·부산 별도 Live API·OpenAI의 실제 외부 연동 검증
-
-## main UI와 test 기능 통합
-
-`mobile`의 화면·탭·테마·지도 구성은 `main`과 동일하게 유지합니다. 기존 `test`의 실시간 주차 API와 공식 좌표 데이터를 새 UI의 추천·상세·추천 이유 API에 연결했습니다.
-
-- `npm run dev:app`: 기본 `mobile` 웹 앱, http://localhost:8081
-- `npm run dev:legacy-app`: 기존 `app` (별도 Expo 포트로 실행)
-- `npm run dev:server`: 공용 API 서버, http://localhost:3000
-- `npm test`, `npm run test:search`, `npm run typecheck`: 자동 검증
-- `npm run test:api`: 실행 중인 서버의 기존 주차 API 점검
-
-기본 `mobile` API는 Supabase UUID 주차장 Provider와 `BUSAN_LIVE_API_URL` 기반 부산시설공단 Live Provider를 유지합니다. `PARKING_REALTIME_URL`과 `SUPABASE_PUBLISHABLE_KEY`는 legacy `/api/parking` 및 직접 부산시설공단 설정이 없을 때의 선택적 Live Provider에 사용됩니다. 시설공단 코드는 `liveSourceId`로만 사용하고 내부 `ParkingLot.id`를 대체하지 않습니다. 원격 오류를 Mock 데이터로 바꾸지 않습니다.
-
-카카오 REST 키는 `server/.env.local`의 `KAKAO_REST_API_KEY`, 웹 지도용 JavaScript 키는 `mobile/.env`의 `EXPO_PUBLIC_KAKAO_JS_KEY`에 설정합니다. 실제 키가 든 환경 파일은 Git에서 제외됩니다.
-
-실시간 응답은 최대 30초 동안 공유하며, 원천의 한국 시각을 ISO UTC로 변환해 5분 이상 지난 정보를 오래된 상태로 표시합니다. 공식 위치 목록과 이름이 유일하게 일치할 때만 좌표를 보완합니다. 좌표가 없으면 상세 조회는 지원하지만 거리 추천·지도 마커에서는 제외합니다.
-
-2026-11-22 실제 점검: Supabase 48곳 수신, 면수 형식과 갱신 시각 확인, 공식 좌표 47곳 연결(‘예비’ 1곳 좌표 없음). 수신 개수와 면수는 이후 원천 데이터에 따라 달라질 수 있습니다.
-
-기존 앱 안내는 [로컬 개발 안내](docs/local-development.md), [기존 구조](docs/architecture.md)를 참고하세요.
+상세 안내는 [로컬 개발](docs/local-development.md), [아키텍처](docs/architecture.md), [원본 분석](docs/source-analysis.md)을 참고하세요.

@@ -1,41 +1,72 @@
 # ParkBusan 아키텍처
 
-## 현재 구현
+## 현재 구조
 
-- Expo Router 화면: 홈(`/`), 검색(`/results`), 지도(`/map`), 상세(`/parking/[id]`), 모바일용 지도 페이지(`/map-embed`).
-- `ParkingProvider`가 API 목록을 공유한다. 초기 로드, 앱 활성화, 활성 중 60초 간격, 수동 새로고침에 조회한다. 중복 요청은 합치고 갱신 실패 시 이전 데이터를 유지한다.
-- `useParkingSearch`가 이름·공식 도로명/지번 주소 검색과 장소 기준 검색을 구분한다. 역명·근처 표현 또는 문자 일치 없음은 `/api/places`로 기준 장소를 확인한다. `filterParking`은 좌표가 확인된 항목에 Haversine 직선거리 1km 필터를 적용하고 가까운 순 또는 잔여 면수순으로 정렬한다. 검색어·필터·선택 장소 ID는 URL 파라미터로 지도 이동에도 전달한다.
-- 상세는 공유 목록의 주차장 코드를 사용하므로 화면 사이에 같은 조회 결과를 표시한다. 다음 갱신 성공 시 모든 화면이 함께 업데이트된다.
-- 웹 지도는 공식 위치 정보가 있으면 그 좌표에 마커를 표시한다. 미확인 위치는 Kakao Web SDK의 services로 후보를 검색하며 후보를 확정 위치로 저장하지 않는다.
-- 네이티브 지도는 `react-native-webview`로 웹 앱의 `/map-embed`를 연다. JavaScript SDK의 허용 도메인과 휴대폰에서 접근 가능한 웹 앱 주소가 필요하다. 네이티브 Kakao SDK를 추가한 방식은 아니다.
+ParkBusan은 `mobile`, `server`, `shared`를 중심으로 구성된 npm workspace 모노레포다.
 
-## 데이터 흐름
+- `mobile/`: Expo SDK 58, Expo Router, React Native 기반 공식 프론트엔드
+- `server/`: Next.js Route Handler 기반 API 및 Provider 조합
+- `shared/`: API 타입, 거리·요금 계산, 추천과 표시 규칙
+- `supabase/`: 기존 DB 스키마와 Edge Function 자료
 
-1. 앱의 `getParkingLots`가 Next.js `/api/parking`을 호출한다.
-2. `ParkingService`가 설정에 따라 Repository를 선택한다.
-3. 함수 URL이 설정되면 `RealtimeParkingRepository`가 서버의 Publishable key를 `apikey` 헤더에 넣어 Supabase Edge Function을 GET 호출한다.
-4. 함수가 공공데이터 API를 호출하고 주차장 코드, 이름, 전체·주차 중·잔여 면수와 갱신 시각을 반환한다.
-5. Repository는 앱 모델로 변환한다. `ParkingService`가 부산시설공단 공식 위치 snapshot의 유일한 동일 이름을 매칭해 주소·좌표·검색용 지번·출처·수집 시각을 보강한다. 이름의 숫자·방향은 보존하고 모호한 매칭은 제외한다. 요금·운영 시간은 null을 유지한다. 잔여 면수 0은 만차, null은 확인 불가다.
-6. `ParkingProvider`는 성공 응답과 조회 시각을 저장한다. 주변 검색의 거리는 원본 데이터를 수정하지 않고 검색 결과 복사본에 계산한다.
+별도 Expo 앱이었던 `app/`은 제거했다. 서버의 호환 API와 Provider는 프론트엔드 통합 대상이 아니므로 유지한다.
 
-`/api/places`는 서버 전용 REST API 키로 카카오 장소·주소 검색을 호출한다. 역은 지하철 카테고리에서 정확한 역명 일치를 우선하고, 지역·주소는 주소 검색을 먼저 수행한다. 결과는 부산 지역에 한정하고 후보가 여러 개면 앱에서 선택한다. 웹·모바일은 같은 API를 사용하며, 클라이언트는 장소 결과를 10분간 캐시한다. 실패를 좌표 없음이나 검색 결과 없음으로 숨기지 않는다.
+## 핵심 데이터 흐름
 
-위치 snapshot은 `npm run sync:locations`로 공개 공식 목록에서 갱신한다. 좌표 범위·필수 항목·건수를 검증한 뒤 기록하며 불완전한 응답으로 기존 자료를 덮어쓰지 않는다. 2026-11-22 확인 시 위치 50건, 실시간 목록 48개 중 위치 연결 47곳이고 `예비`는 미확인 상태다.
+1. 모바일이 `/api/parse`로 자연어를 구조화한다.
+2. `/api/places?q=`에서 목적지 후보를 조회하고 사용자가 하나를 선택한다.
+3. `/api/recommend`가 주차장 Provider, 거리·요금 계산, 실시간 Provider를 결합한다.
+4. 모바일은 서버가 반환한 순위와 계산값을 그대로 표시한다.
+5. `/api/parking-lots/[id]`가 상세, 예상 요금, 실시간 상태를 반환한다.
+6. `/api/explain`은 같은 서버 계산 결과에 근거해 설명을 만든다.
 
-함수 URL이 없을 때 기존 Supabase DB 환경변수가 있으면 DB Repository, 없으면 Mock Repository를 사용한다. 함수 호출 오류를 Mock으로 숨기지 않는다. 앱의 API 주소가 아예 없을 때만 앱 자체 Mock을 사용한다. DB 적재 또는 Supabase Realtime 구독은 수행하지 않는다.
+프론트엔드는 별도 추천 순위나 요금 계산을 구현하지 않는다. Supabase UUID는 주차장 ID로 유지하며 시설공단 코드는 `liveSourceId`로 분리한다.
 
-## 설정과 오류 처리
+## 지도
 
-- 서버: `PARKING_REALTIME_URL`, `SUPABASE_PUBLISHABLE_KEY`, `KAKAO_REST_API_KEY`. DB 직접 조회용 Secret key와 OpenAI key도 서버 전용이다.
-- 앱: `EXPO_PUBLIC_API_URL`, `EXPO_PUBLIC_KAKAO_MAP_KEY`, 선택적인 `EXPO_PUBLIC_MAP_WEB_URL`.
-- 개발 중 localhost API는 Expo 호스트 또는 브라우저의 호스트로 보정해 휴대폰에서 PC 서버에 연결할 수 있게 한다. 배포 시 실제 접근 가능한 URL을 지정한다.
-- API는 외부 오류 본문이나 인증 키를 앱에 전달하지 않는다. 화면은 갱신 실패를 표시하며 이전 정보의 조회 시각을 유지한다.
-- SDK 로드 실패, 위치 후보 없음, 위치 검색 실패, WebView 로드 실패는 각각 화면에 표시한다.
+- Web: `mobile/src/components/ResultMap.web.tsx`가 Kakao Maps JavaScript SDK를 사용한다.
+- Android/iOS: `mobile/src/components/ResultMap.tsx`가 `react-native-maps`를 사용한다.
+- 좌표가 없는 주차장은 지도 마커에서 제외하되 목록과 상세에서 누락 정보로 표시한다.
+- Android/iOS에서 카카오 네이티브 SDK를 사용하는 것으로 가정하지 않는다.
+- 제거한 레거시 앱의 WebView 지도는 별도 웹 앱 주소와 `react-native-webview` 의존성이 필요하고 현재 네이티브 지도보다 기능적 이점이 없어 이전하지 않았다.
 
-## 남은 범위와 검증 한계
+## 60초 자동 갱신
 
-- 목록은 현재 함수의 첫 페이지 최대 100건이다. 앱 검색과 상세도 반환된 목록에 한정된다.
-- 자유로운 자연어 파싱, 요금·시간 조건, 도보·차량 경로 거리, 공공데이터 DB 적재는 미구현이다. 장소 기준 반경과 정렬은 직선거리로 계산한다. 위치 자료 갱신은 명시적인 수집 스크립트로 수행한다.
-- 인증, 관리자, 예약·결제, 이미지 분석은 추가하지 않았다.
-- SQL 스키마와 예시 seed는 준비되어 있지만 실행하거나 기존 DB를 변경하지 않는다.
-- 타입·코드 검사, 검색 로직 테스트, 실제 API 조회, 브라우저 통합 테스트와 Android·iOS·웹 번들 생성으로 검증한다. 네이티브 WebView의 기기별 실행은 별도 실기기 확인이 필요하다.
+추천 결과와 상세 화면은 다음 규칙으로 갱신한다.
+
+- 화면이 포커스되고 앱 상태가 `active`일 때만 60초 타이머를 유지한다.
+- 백그라운드 또는 화면 이탈 시 타이머와 이벤트 구독을 정리한다.
+- 백그라운드에서 복귀하면 한 번 즉시 갱신한다.
+- 같은 검색 조건의 진행 중 요청은 중복 실행하지 않는다.
+- 검색 조건이나 상세 ID가 바뀐 뒤 도착한 이전 응답은 적용하지 않는다.
+- 갱신 실패 시 마지막 정상 결과를 유지하고 비차단 경고만 표시한다.
+- 서버 실시간 Provider의 최대 30초 캐시보다 긴 주기를 사용한다.
+
+## Provider 선택과 오류 처리
+
+- 주차장 데이터: Supabase 설정이 있으면 실제 Provider, 없으면 개발용 Mock Provider를 선택한다.
+- 실시간 데이터: 설정에 따라 부산시설공단 직접 API 또는 Edge Function Provider를 선택한다.
+- 실제 Provider를 선택한 뒤 발생한 인증, RLS, 스키마, 네트워크 오류를 Mock 데이터로 숨기지 않는다.
+- 매핑되지 않았거나 실시간 미지원인 주차장에는 가짜 잔여 면수를 만들지 않는다.
+- 요금·운영시간·좌표가 없으면 `null` 또는 명확한 정보 없음 상태를 유지한다.
+
+## 환경변수 경계
+
+모바일 공개 변수:
+
+- `EXPO_PUBLIC_API_URL`
+- `EXPO_PUBLIC_KAKAO_JS_KEY`
+
+서버 전용 변수는 `server/.env.example`을 기준으로 한다. Supabase Secret Key, 카카오 REST 키, 공공데이터 키, OpenAI 키는 모바일 번들에 포함하지 않는다.
+
+## 유지하는 호환 기능
+
+공식 모바일 앱은 핵심 API 계약을 사용하지만 다음 서버 기능도 유지한다.
+
+- `GET /api/parking`
+- `GET /api/parking/[id]`
+- Edge Function Live Provider
+- 부산시설공단 실시간 API 직접 호출
+- 30초 Live Provider 캐시
+- Supabase UUID와 시설공단 코드 매핑
+- 기존 서버 테스트와 데이터 검증 도구

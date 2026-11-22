@@ -1,5 +1,6 @@
 import type { Place, RecommendResponse, SearchConditions } from '@parkbusan/shared';
-import { api } from './api';
+import { api, errorMessage } from './api';
+import { createRefreshCoordinator } from './refresh';
 
 export interface HistoryItem {
   conditions: SearchConditions;
@@ -15,7 +16,46 @@ export const session: {
   place: Place | null;
   result: RecommendResponse | null;
   history: HistoryItem[];
-} = { conditions: null, place: null, result: null, history: [] };
+  updatedAt: number | null;
+  refreshError: string | null;
+} = { conditions: null, place: null, result: null, history: [], updatedAt: null, refreshError: null };
+
+interface RecommendationContext {
+  conditions: SearchConditions & { durationMinutes: number };
+  place: Place;
+}
+
+function recommendationSnapshot(): { key: string; context: RecommendationContext } | null {
+  const conditions = session.conditions;
+  const place = session.place;
+  if (!conditions?.durationMinutes || !place) return null;
+  const context: RecommendationContext = {
+    conditions: { ...conditions, durationMinutes: conditions.durationMinutes },
+    place: { ...place },
+  };
+  return {
+    key: JSON.stringify({ conditions: context.conditions, place: context.place }),
+    context,
+  };
+}
+
+const recommendationRefresh = createRefreshCoordinator<RecommendationContext, RecommendResponse>({
+  snapshot: recommendationSnapshot,
+  load: ({ conditions, place }) =>
+    api.recommend({
+      destination: { lat: place.lat, lng: place.lng, name: place.name },
+      durationMinutes: conditions.durationMinutes,
+      budget: conditions.budget,
+    }),
+  apply: (result) => {
+    session.result = result;
+    session.updatedAt = Date.now();
+    session.refreshError = null;
+  },
+  onError: (error) => {
+    session.refreshError = errorMessage(error);
+  },
+});
 
 /** 확정된 조건과 목적지로 추천을 요청하고 세션과 검색 기록에 저장한다. */
 export async function runRecommend(conditions: SearchConditions, place: Place): Promise<RecommendResponse> {
@@ -27,7 +67,18 @@ export async function runRecommend(conditions: SearchConditions, place: Place): 
   session.conditions = conditions;
   session.place = place;
   session.result = result;
+  session.updatedAt = Date.now();
+  session.refreshError = null;
   const same = (h: HistoryItem) => h.place.id === place.id && JSON.stringify(h.conditions) === JSON.stringify(conditions);
   session.history = [{ conditions, place, at: Date.now() }, ...session.history.filter((h) => !same(h))].slice(0, 10);
   return result;
+}
+
+/** Refreshes the latest recommendation without clearing the last successful result. */
+export function refreshRecommend(): Promise<RecommendResponse | null> {
+  return recommendationRefresh.refresh();
+}
+
+export function clearHistory(): void {
+  session.history = [];
 }

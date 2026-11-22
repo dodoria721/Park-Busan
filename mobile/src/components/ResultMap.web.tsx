@@ -1,6 +1,6 @@
 // UI-03 웹 지도: EXPO_PUBLIC_KAKAO_JS_KEY가 있으면 카카오 지도 JS SDK, 없거나 로드 실패면 좌표 미리보기.
 // 카카오 JS 키는 브라우저 공개용 키다(콘솔 Web 플랫폼에 등록한 도메인에서만 동작). REST 키는 서버에만 둔다.
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import type { MapProps } from './map-props';
 import { s } from '../ui';
@@ -69,7 +69,7 @@ function KakaoMap({ dest, items, selectedId, onSelect, onFail }: MapProps & { on
     return () => {
       alive = false;
     };
-  }, [dest, items, selectedId]);
+  }, [dest, items, onFail, onSelect, selectedId]);
 
   return (
     <View style={{ gap: 8 }}>
@@ -81,7 +81,8 @@ function KakaoMap({ dest, items, selectedId, onSelect, onFail }: MapProps & { on
 
 export default function ResultMap(props: MapProps) {
   const [failed, setFailed] = useState(false);
-  if (JS_KEY && !failed) return <KakaoMap {...props} onFail={() => setFailed(true)} />;
+  const onFail = useCallback(() => setFailed(true), []);
+  if (JS_KEY && !failed) return <KakaoMap {...props} onFail={onFail} />;
   return <Preview {...props} note={JS_KEY ? '카카오 지도를 불러오지 못했습니다(도메인 등록·키 확인 필요).' : undefined} />;
 }
 

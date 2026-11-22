@@ -1,5 +1,5 @@
 // UI-04 주차장 상세(FR-007, FR-010, FR-011) + 길찾기 확인 팝업·연동(FR-015) — Figma 06·12
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,6 +16,7 @@ import {
 } from '@parkbusan/shared';
 import { api, errorMessage } from '../../api';
 import { session } from '../../session';
+import { useAutoRefresh } from '../../use-auto-refresh';
 import { Badge, Button, Card, Mascot, Notice, liveBadge, s } from '../../ui';
 import { color, font, radius } from '../../theme';
 
@@ -52,40 +53,79 @@ async function openDirections(lot: ParkingLot): Promise<string | null> {
 export default function LotDetail() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const [data, setData] = useState<LotDetailResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState<{ id: string; value: LotDetailResponse } | null>(null);
+  const [error, setError] = useState<{ id: string; message: string } | null>(null);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
   const [navMsg, setNavMsg] = useState<string | null>(null);
   const [reason, setReason] = useState<string | null>(null);
   const [showFee, setShowFee] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const c = session.conditions;
   const place = session.place;
+  const mounted = useRef(true);
+  const activeId = useRef(id);
+  const dataRef = useRef<{ id: string; value: LotDetailResponse } | null>(null);
+  const inFlight = useRef<{ id: string; promise: Promise<void> } | null>(null);
 
   useEffect(() => {
-    api
-      .lot(id, { minutes: c?.durationMinutes ?? undefined, lat: place?.lat, lng: place?.lng })
-      .then(setData)
-      .catch((e) => setError(errorMessage(e)));
+    activeId.current = id;
+  }, [id]);
+
+  const refreshDetail = useCallback((): Promise<void> => {
+    if (inFlight.current?.id === id) return inFlight.current.promise;
+    const requestedId = id;
+    const task = api
+      .lot(requestedId, { minutes: c?.durationMinutes ?? undefined, lat: place?.lat, lng: place?.lng })
+      .then((next) => {
+        if (!mounted.current || activeId.current !== requestedId) return;
+        const current = { id: requestedId, value: next };
+        dataRef.current = current;
+        setLoaded(current);
+        setError(null);
+        setRefreshError(null);
+      })
+      .catch((reason: unknown) => {
+        if (!mounted.current || activeId.current !== requestedId) return;
+        const message = errorMessage(reason);
+        if (dataRef.current?.id === requestedId) setRefreshError(`자동 갱신에 실패했습니다. 마지막 정상 정보를 표시합니다. ${message}`);
+        else setError({ id: requestedId, message });
+      })
+      .finally(() => {
+        if (inFlight.current?.promise === task) inFlight.current = null;
+      });
+    inFlight.current = { id: requestedId, promise: task };
+    return task;
+  }, [c?.durationMinutes, id, place?.lat, place?.lng]);
+
+  useAutoRefresh(refreshDetail);
+
+  useEffect(() => {
+    mounted.current = true;
+    void refreshDetail();
     if (place && c?.durationMinutes) {
       api
         .explain({ lotId: id, destination: place, durationMinutes: c.durationMinutes, budget: c.budget })
         .then((r) => setReason(r.text))
         .catch(() => setReason(null));
     }
-  }, [id]);
+    return () => {
+      mounted.current = false;
+    };
+  }, [c?.budget, c?.durationMinutes, id, place, refreshDetail]);
 
   const back = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
-  if (error) {
+  if (error?.id === id) {
     return (
       <View style={s.screen}>
-        <Notice kind="error" text={error} />
+        <Notice kind="error" text={error.message} />
         <Button title="뒤로" variant="outline" onPress={back} />
       </View>
     );
   }
-  if (!data) return <Text style={[s.screen, s.sub]}>불러오는 중…</Text>;
+  if (loaded?.id !== id) return <Text style={[s.screen, s.sub]}>불러오는 중…</Text>;
 
+  const data = loaded.value;
   const { lot, live } = data;
   const badge = liveBadge(live);
   const hasLive = (live.state === 'ok' || live.state === 'stale') && live.available != null;
@@ -113,6 +153,7 @@ export default function LotDetail() {
         </Card>
 
         {data.liveWarning && <Notice kind="warn" text={data.liveWarning} />}
+        {refreshError && <Notice kind="warn" text={refreshError} />}
 
         {/* FR-010: 실시간 면수 + 기관 갱신 시각 */}
         <Card>

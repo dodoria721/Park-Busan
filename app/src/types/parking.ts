@@ -1,2 +1,0 @@
-export type LiveStatus = 'available' | 'full' | 'unknown';
-export interface ParkingLot { id: string; name: string; address: string | null; latitude: number | null; longitude: number | null; isPublic: boolean | null; totalSpaces: number | null; distanceMeters: number | null; estimatedFeeWon: number | null; operatingHours: string | null; liveStatus: LiveStatus; occupiedSpaces?: number | null; availableSpaces?: number | null; lastUpdated?: string | null; locationSearchText?: string; locationSource?: string; locationUpdatedAt?: string; }
