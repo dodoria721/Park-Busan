@@ -6,11 +6,11 @@
 
 ## 부산 민영주차장 적재
 
-팀원에게 `import-private-parking.py`, 이 문서, 원본 CSV 17개를 전달합니다. CSV는 한 폴더에 모으고 파일명을 유지합니다. Python 3 표준 라이브러리만 사용하며 아래 명령은 DB에 접속하지 않습니다.
+이 브랜치의 `private-parking/` 폴더에 원본 CSV 17개가 있습니다. 별도로 전달할 때는 `import-private-parking.py`, 이 문서, CSV 폴더를 함께 전달합니다. 저장소 루트에서 아래 명령을 실행합니다. Python 3 표준 라이브러리만 사용하며 아래 명령은 DB에 접속하지 않습니다.
 
 ```powershell
-python -X utf8 scripts/import-private-parking.py "C:\path\to\csv"
-python -X utf8 scripts/import-private-parking.py "C:\path\to\csv" --output private-parking.sql
+python -X utf8 scripts/import-private-parking.py private-parking
+python -X utf8 scripts/import-private-parking.py private-parking --output private-parking.sql
 ```
 
 첫 명령은 건수와 제외된 관리번호를 출력합니다. 두 번째 명령은 같은 검증을 거쳐 SQL 파일을 생성합니다. 첨부본 기준 UTF-8 CSV 17개에서 전체 638행, 민영 230행(강서구 87, 해운대구 143), 적재 가능 225행, 기본요금 정책 30건입니다. 해운대구의 좌표 누락 5행은 건너뜁니다. 주소는 도로명 우선으로 사용하고, 운영시간은 요일별 원본 시각을 기록합니다. CSV의 1일주차권요금은 일 최대요금으로 사용하기에 근거가 부족해 원본 데이터에만 보관합니다.
@@ -45,4 +45,4 @@ where mapping.source_name = '부산 민영주차장 CSV';
 {"destination":{"lat":35.1090313,"lng":128.9297095},"durationMinutes":30,"budget":null}
 ```
 
-응답의 `all`에서 `화인종합주차장`을 확인합니다. 앱에서 같은 조건으로 검색하면 기존 결과 목록과 표시 방식을 사용합니다. 요금을 계산할 수 없는 주차장은 예산이 있을 때 기존 ‘요금 확인 필요’ 목록에 표시됩니다. 생성 SQL, 원본 CSV, 비밀 키와 `.env.local`은 커밋 대상에서 제외합니다.
+응답의 `all`에서 `화인종합주차장`을 확인합니다. 앱에서 같은 조건으로 검색하면 기존 결과 목록과 표시 방식을 사용합니다. 요금을 계산할 수 없는 주차장은 예산이 있을 때 기존 ‘요금 확인 필요’ 목록에 표시됩니다. 생성 SQL, 비밀 키와 `.env.local`은 커밋 대상에서 제외합니다.
