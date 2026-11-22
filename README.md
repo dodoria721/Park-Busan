@@ -1,78 +1,46 @@
-# ParkBusan
+# ParkBusan 민영주차장
 
-부산 공영주차장을 목적지, 주차 시간, 예산에 따라 추천하는 npm workspace 모노레포입니다.
+이 브랜치는 부산 민영주차장을 기존 검색 결과에 포함합니다. 앱 실행과 전체 프로젝트 구조는 [main 브랜치 README](https://github.com/dodoria721/Park-Busan/blob/main/README.md)를 참고하세요.
 
-## 프로젝트 구조
+## 부산 민영주차장 적재
 
-```text
-mobile/   Expo SDK 58 + Expo Router 공식 프론트엔드
-server/   Next.js Route Handler 기반 API 서버
-shared/   모바일과 서버가 공유하는 타입·요금·거리·추천 로직
-docs/     요구사항, 설계 및 개발 문서
-supabase/ DB 스키마와 Edge Function 자료
-scripts/  데이터 검증 및 운영 보조 도구
+이 브랜치의 `private-parking/` 폴더에 원본 CSV 17개가 있습니다. 별도로 전달할 때는 [적재 스크립트](scripts/import-private-parking.py), 이 문서, [CSV 폴더](private-parking/)를 함께 전달합니다. 저장소 루트에서 아래 명령을 실행합니다. Python 3 표준 라이브러리만 사용하며 아래 명령은 DB에 접속하지 않습니다.
+
+```powershell
+python -X utf8 scripts/import-private-parking.py private-parking
+python -X utf8 scripts/import-private-parking.py private-parking --output private-parking.sql
 ```
 
-프론트엔드는 `mobile/` 하나만 사용합니다. 과거 `test` 브랜치의 별도 Expo 앱이었던 `app/`은 기능 검토 후 제거했습니다.
+첫 명령은 건수와 제외된 관리번호를 출력합니다. 두 번째 명령은 같은 검증을 거쳐 SQL 파일을 생성합니다. 첨부본 기준 UTF-8 CSV 17개에서 전체 638행, 민영 230행(강서구 87, 해운대구 143), 적재 가능 225행, 기본요금 정책 30건입니다. 해운대구의 좌표 누락 5행은 건너뜁니다. 주소는 도로명 우선으로 사용하고, 운영시간은 요일별 원본 시각을 기록합니다. CSV의 1일주차권요금은 일 최대요금으로 사용하기에 근거가 부족해 원본 데이터에만 보관합니다.
 
-## 실행
+DB 권한이 있는 팀원이 팀 Supabase 프로젝트에서 초기 주차장 스키마가 적용되어 있는지 확인한 뒤 **SQL Editor**에서 생성된 `private-parking.sql` 전체를 한 번 실행합니다. SQL은 한 트랜잭션으로 실행되며 신규 행에만 주차장, 출처 매핑, 요금 정책을 추가합니다. CSV 관리번호나 전용 외부 ID가 이미 등록되어 있거나 동일 관리번호의 표준데이터 출처 매핑이 있으면 기존 정보를 유지합니다. 이름이나 주소만으로는 동일 주차장을 합치지 않습니다. 같은 SQL을 다시 실행하면 적재 이력은 한 건 남고 신규 주차장과 요금 정책은 0건입니다.
 
-Node.js 22.13 이상을 권장합니다.
+SQL Editor에서 다음 쿼리로 최근 실행 건수와 실제 연결을 확인합니다.
 
-```bash
-npm install
-copy mobile\.env.example mobile\.env
-copy server\.env.example server\.env.local
-npm run dev:server
-npm run dev:app
+```sql
+select id, status, records_read, records_written, finished_at
+from public.import_runs
+where source_name = '부산 민영주차장 CSV'
+order by finished_at desc
+limit 5;
+
+select count(*) as imported_lots,
+       count(distinct lot.id) as distinct_lots,
+       count(*) filter (where lot.is_public) as public_lots,
+       count(*) filter (where exists (
+         select 1 from public.fee_policies fee where fee.parking_lot_id = lot.id
+       )) as lots_with_fees
+from public.source_mappings mapping
+join public.parking_lots lot on lot.id = mapping.parking_lot_id
+where mapping.source_name = '부산 민영주차장 CSV';
 ```
 
-- 웹에서 서버는 기본 `http://localhost:3000`, Expo는 `http://localhost:8081`을 사용합니다.
-- Android 에뮬레이터의 서버 주소는 일반적으로 `http://10.0.2.2:3000`입니다.
-- 실기기는 PC와 같은 네트워크에 연결하고 `EXPO_PUBLIC_API_URL`에 PC의 LAN 주소를 설정합니다.
-- 서버 비밀키는 `server/.env.local`에만 두며 모바일의 `EXPO_PUBLIC_*` 변수에 넣지 않습니다.
+동일 주차장이 미리 등록되어 있지 않으면 첫 실행에서 `records_read=230`, `records_written=225`, `fee_policies_written=30`이 나옵니다. 두 번째 쿼리는 각각 `225, 225, 0, 30`입니다. 재실행 뒤에는 최근 이력의 `records_written=0`과 두 번째 쿼리의 동일한 건수를 확인합니다.
 
-## 주요 API 계약
+팀 Supabase에 연결된 앱에서는 강서구 명지동의 화인종합주차장 좌표(35.1090313, 128.9297095)를 중심으로 예산 없이 검색해 결과를 확인할 수 있습니다. API로 확인할 경우 아래 JSON을 `POST /api/recommend`에 보냅니다.
 
-| 경로 | 역할 |
-| --- | --- |
-| `GET /api/health` | 활성 Provider 상태 확인 |
-| `POST /api/parse` | 자연어 검색 조건 추출 및 후속 조건 병합 |
-| `GET /api/places?q=` | 카카오 장소 후보 검색 |
-| `POST /api/recommend` | 거리·요금·실시간 상태 기반 추천 |
-| `GET /api/parking-lots/[id]` | 주차장 상세, 예상 요금, 실시간 상태 |
-| `POST /api/explain` | 서버 계산 결과에 근거한 추천 설명 |
-
-통합 과정에서 추가된 `GET /api/parking`, `GET /api/parking/[id]` 및 Edge Function 경로도 호환 목적으로 서버에 유지합니다. 공식 모바일 앱은 위 핵심 계약을 사용합니다.
-
-## 프론트엔드 동작
-
-- 자연어 검색, 조건 확인·수정, 목적지 선택, 추천 목록, 지도, 상세, 후속 검색을 제공합니다.
-- Web 지도는 `ResultMap.web.tsx`와 Kakao Maps JavaScript SDK를 사용합니다.
-- Android/iOS 지도는 `ResultMap.tsx`와 `react-native-maps`를 사용합니다.
-- 추천 결과와 상세 정보는 화면이 보이고 앱이 활성 상태일 때만 60초마다 갱신합니다.
-- 갱신 중 기존 결과와 검색·필터·지도 선택 상태를 유지합니다. 실패 시 마지막 정상 결과를 보존합니다.
-- 동일 요청은 합치고, 검색 조건이 바뀐 뒤 도착한 이전 응답은 적용하지 않습니다.
-- 실시간 정보가 없거나 매핑되지 않은 주차장에는 잔여 면수를 생성하지 않습니다.
-
-## Provider와 데이터 안전성
-
-- Supabase, 부산시설공단 실시간 API, 카카오 REST API 설정은 서버 전용입니다.
-- 실제 Provider가 선택된 뒤 조회가 실패해도 Mock으로 자동 전환하지 않습니다.
-- `ParkingLot.id`는 Supabase UUID를 유지하며 시설공단 코드는 별도 `liveSourceId`로 연결합니다.
-- 실시간 Provider 응답은 서버에서 최대 30초 캐시됩니다. 모바일의 60초 갱신 주기는 이 캐시보다 길게 유지합니다.
-- 누락된 요금, 좌표, 실시간 값은 임의로 만들지 않습니다.
-
-## 검증 명령
-
-```bash
-npm run typecheck
-npm test
-npm run lint
-npm run doctor
-npm run build -w server
+```json
+{"destination":{"lat":35.1090313,"lng":128.9297095},"durationMinutes":30,"budget":null}
 ```
 
-실행 중인 로컬 서버의 호환 API 점검은 `npm run test:api`로 수행할 수 있습니다.
-
-상세 안내는 [로컬 개발](docs/local-development.md), [아키텍처](docs/architecture.md), [원본 분석](docs/source-analysis.md)을 참고하세요.
+응답의 `all`에서 `화인종합주차장`을 확인합니다. 앱에서 같은 조건으로 검색하면 기존 결과 목록과 표시 방식을 사용합니다. 요금을 계산할 수 없는 주차장은 예산이 있을 때 기존 ‘요금 확인 필요’ 목록에 표시됩니다. 생성 SQL, 비밀 키와 `.env.local`은 커밋 대상에서 제외합니다.
