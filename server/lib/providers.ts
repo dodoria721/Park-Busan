@@ -5,6 +5,7 @@ import { mockAI } from './mock-ai.ts';
 import { mockGeo, mockLive, mockParking } from './mock-data.ts';
 import { kakaoGeo, openAI, publicLive, supabaseParking } from './real.ts';
 import { logError, withTimeout } from './http.ts';
+import { createRealtimeLiveProvider } from './realtime-parking.ts';
 
 export interface ParkingDataProvider {
   /** 반경 안의 후보. 최종 거리 필터는 Recommender가 다시 적용한다. */
@@ -44,6 +45,14 @@ export interface ParkingProviderEnvironment {
   SUPABASE_URL?: string;
   SUPABASE_SECRET_KEY?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
+  PARKING_REALTIME_URL?: string;
+  SUPABASE_PUBLISHABLE_KEY?: string;
+}
+
+export type LiveProviderName = 'mock' | 'busan-public-api' | 'busan-public-api-misconfigured' | 'edge-function' | 'edge-function-misconfigured';
+export interface LiveProviderEnvironment extends ParkingProviderEnvironment {
+  BUSAN_LIVE_API_URL?: string;
+  BUSAN_LIVE_API_KEY?: string;
 }
 
 function misconfiguredParking(): ParkingDataProvider {
@@ -59,17 +68,53 @@ export function selectParkingProvider(source: ParkingProviderEnvironment): { pro
   return { provider: supabaseParking(url, secret), name: 'supabase' };
 }
 
+function misconfiguredLive(message: string): LiveProvider {
+  return { getStatus: () => Promise.reject(new Error(message)) };
+}
+
+export function selectLiveProvider(source: LiveProviderEnvironment): { provider: LiveProvider; name: LiveProviderName } {
+  const busanUrl = source.BUSAN_LIVE_API_URL?.trim();
+  const busanKey = source.BUSAN_LIVE_API_KEY?.trim();
+  if (busanUrl || busanKey) {
+    if (!busanUrl || !busanKey) {
+      return { provider: misconfiguredLive('Busan live parking environment is incomplete'), name: 'busan-public-api-misconfigured' };
+    }
+    return { provider: publicLive(busanUrl, busanKey), name: 'busan-public-api' };
+  }
+
+  const realtimeUrl = source.PARKING_REALTIME_URL?.trim();
+  const realtimeKey =
+    source.SUPABASE_PUBLISHABLE_KEY?.trim() ||
+    source.SUPABASE_SECRET_KEY?.trim() ||
+    source.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  if (realtimeUrl || source.SUPABASE_PUBLISHABLE_KEY?.trim()) {
+    if (!realtimeUrl || !realtimeKey) {
+      return { provider: misconfiguredLive('Parking Edge Function environment is incomplete'), name: 'edge-function-misconfigured' };
+    }
+    return { provider: createRealtimeLiveProvider(realtimeUrl, realtimeKey), name: 'edge-function' };
+  }
+
+  return { provider: mockLive, name: 'mock' };
+}
+
 const selectedParking = selectParkingProvider({
   SUPABASE_URL: env.SUPABASE_URL,
   SUPABASE_SECRET_KEY: env.SUPABASE_SECRET_KEY,
   SUPABASE_SERVICE_ROLE_KEY: env.SUPABASE_SERVICE_ROLE_KEY,
+  PARKING_REALTIME_URL: env.PARKING_REALTIME_URL,
+  SUPABASE_PUBLISHABLE_KEY: env.SUPABASE_PUBLISHABLE_KEY,
 });
 export const parkingData = selectedParking.provider;
 
-export const live: LiveProvider =
-  env.BUSAN_LIVE_API_URL && env.BUSAN_LIVE_API_KEY
-    ? publicLive(env.BUSAN_LIVE_API_URL, env.BUSAN_LIVE_API_KEY)
-    : mockLive;
+const selectedLive = selectLiveProvider({
+  BUSAN_LIVE_API_URL: env.BUSAN_LIVE_API_URL,
+  BUSAN_LIVE_API_KEY: env.BUSAN_LIVE_API_KEY,
+  PARKING_REALTIME_URL: env.PARKING_REALTIME_URL,
+  SUPABASE_PUBLISHABLE_KEY: env.SUPABASE_PUBLISHABLE_KEY,
+  SUPABASE_SECRET_KEY: env.SUPABASE_SECRET_KEY,
+  SUPABASE_SERVICE_ROLE_KEY: env.SUPABASE_SERVICE_ROLE_KEY,
+});
+export const live: LiveProvider = selectedLive.provider;
 
 export const geo: GeoProvider = env.KAKAO_REST_API_KEY ? kakaoGeo(env.KAKAO_REST_API_KEY) : mockGeo;
 
@@ -78,7 +123,7 @@ export const ai: AIProvider =
 
 export const providerNames = {
   parking: selectedParking.name,
-  live: live === mockLive ? 'mock' : 'busan-public-api',
+  live: selectedLive.name,
   geo: geo === mockGeo ? 'mock' : 'kakao',
   ai: ai === mockAI ? 'mock' : 'openai',
 };

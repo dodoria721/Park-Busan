@@ -88,6 +88,31 @@ test('원천 요금 정책에 무료가 명시된 경우에만 무료로 변환'
   assert.equal(lot.fee?.isFree, true);
 });
 
+test('시설공단 원천 코드 하나만 매핑된 경우 UUID와 별도로 liveSourceId를 보존', () => {
+  const lot = mapSupabaseParkingLot({
+    ...fixture,
+    source_mappings: [
+      ...fixture.source_mappings!,
+      { source_name: 'busan_facilities_live', source_record_id: 'A01', last_seen_at: '2026-11-22T00:00:00Z' },
+    ],
+  });
+  assert.equal(lot.id, fixture.id);
+  assert.equal(lot.liveSourceId, 'A01');
+  assert.equal(lot.liveSupported, true);
+});
+
+test('시설공단 코드가 없거나 충돌하면 실시간 지원을 임의로 활성화하지 않음', () => {
+  const ambiguous = mapSupabaseParkingLot({
+    ...fixture,
+    source_mappings: [
+      { source_name: 'busan_facilities_live', source_record_id: 'A01', last_seen_at: null },
+      { source_name: 'busan_facilities_live', source_record_id: 'A02', last_seen_at: null },
+    ],
+  });
+  assert.equal(ambiguous.liveSourceId, undefined);
+  assert.equal(ambiguous.liveSupported, false);
+});
+
 test('빈 Supabase 결과는 빈 목록과 null 상세로 처리', async () => {
   const seen: { authorization: string | null; apikey: string | null; url: string }[] = [];
   const fetcher = async (input: string | URL | Request, init?: RequestInit) => {

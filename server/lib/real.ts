@@ -1,20 +1,14 @@
-// ⚠️ 미검증 코드: 실제 외부 서비스로 요청을 보내 확인한 적이 없습니다.
-// 환경 변수가 설정될 때만 선택됩니다(lib/providers.ts). 필드명·엔드포인트는 실제 문서와 대조 후 수정하세요.
+// 외부 Provider는 환경 변수가 설정될 때만 선택됩니다(lib/providers.ts).
 import type { LiveStatus, Place } from '@parkbusan/shared';
 import type { AIProvider, GeoProvider, LiveProvider } from './providers.ts';
 import { templateExplanation } from './ai.ts';
 export { supabaseParking } from './supabase-parking.ts';
 
-async function getJson(url: string, init?: RequestInit): Promise<unknown> {
-  const res = await fetch(url, init);
+async function getJson(url: string, init?: RequestInit, request: typeof fetch = fetch): Promise<unknown> {
+  const res = await request(url, init);
   if (!res.ok) throw new Error(`${new URL(url).host} ${res.status}`);
   return res.json();
 }
-
-/**
- * 미검증: 부산시설공단 실시간 주차 API. 응답 구조와 외부 ID 매핑(source_mappings)은 확인 전이다.
- * 여기서는 items[]에 { id, available, total, updatedAt }가 온다고 가정한다.
- */
 
 /** 부산시설공단 실시간 주차정보 API 응답 */
 interface BusanLiveItem {
@@ -77,7 +71,7 @@ function parseBusanUpdatedAt(value: string | null): string | null {
  * 이 단계에서 ids는 시설공단 코드(A01, A35 등)여야 한다.
  * Supabase UUID 변환은 source_mappings 연동 단계에서 구현한다.
  */
-export function publicLive(url: string, key: string): LiveProvider {
+export function publicLive(url: string, key: string, request: typeof fetch = fetch): LiveProvider {
   return {
     async getStatus(ids) {
       if (ids.length === 0) return {};
@@ -90,7 +84,9 @@ export function publicLive(url: string, key: string): LiveProvider {
       requestUrl.searchParams.set('numOfRows', '100');
 
       const data = (await getJson(
-        requestUrl.toString()
+        requestUrl.toString(),
+        undefined,
+        request,
       )) as BusanLiveResponse;
 
       const response = data.response;

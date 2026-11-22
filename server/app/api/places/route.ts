@@ -1,9 +1,11 @@
+import { GET as searchLegacyPlaces } from '@/src/services/placeSearch';
 import type { PlacesResponse } from '@parkbusan/shared';
 import { fail, logError } from '@/lib/http.ts';
 import { geo } from '@/lib/providers.ts';
 
 // GET /api/places?q=서면 → { places }  (FR-004, 2개 이상이면 앱에서 선택)
 export async function GET(req: Request) {
+  if (new URL(req.url).searchParams.has('query')) return searchLegacyPlaces(req);
   const q = new URL(req.url).searchParams.get('q')?.trim() ?? '';
   if (!q || q.length > 50) return fail(400, 'INVALID_QUERY', '목적지를 1~50자로 입력해 주세요.');
   try {

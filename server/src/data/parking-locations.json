@@ -1,0 +1,406 @@
+{
+  "source": "https://bsparking.bisco.or.kr/api/parking/realtime/list",
+  "retrievedAt": "2026-11-21T15:09:40.372Z",
+  "locations": [
+    {
+      "officialId": "1",
+      "name": "반송1, 3동 공영",
+      "address": "부산 해운대구 반송순환로 100-6",
+      "landAddress": "부산 해운대구 반송동 205-2806",
+      "latitude": 35.219446,
+      "longitude": 129.153934
+    },
+    {
+      "officialId": "2",
+      "name": "삼락재첩거리",
+      "address": "부산 사상구 삼락동 71-6 외",
+      "landAddress": "부산 사상구 삼락동 71-6 외",
+      "latitude": 35.192803,
+      "longitude": 128.98537
+    },
+    {
+      "officialId": "3",
+      "name": "수변어린이공원",
+      "address": "부산 수영구 민락동 110-15",
+      "landAddress": "부산 수영구 민락동 110-15",
+      "latitude": 35.156344,
+      "longitude": 129.13399
+    },
+    {
+      "officialId": "4",
+      "name": "장산역 1번",
+      "address": "부산 해운대구 좌동 1467-1",
+      "landAddress": "부산 해운대구 좌동 1467-1",
+      "latitude": 35.170479,
+      "longitude": 129.176431
+    },
+    {
+      "officialId": "5",
+      "name": "장산역 2번",
+      "address": "부산 해운대구 좌동 1479-4",
+      "landAddress": "부산 해운대구 좌동 1479-4",
+      "latitude": 35.1690272,
+      "longitude": 129.1774062
+    },
+    {
+      "officialId": "6",
+      "name": "좌1동",
+      "address": "부산 해운대구 좌동 1461-2",
+      "landAddress": "부산 해운대구 좌동 1461-2",
+      "latitude": 35.171976,
+      "longitude": 129.175408
+    },
+    {
+      "officialId": "7",
+      "name": "노포역",
+      "address": "부산 금정구 노포동 133",
+      "landAddress": "부산 금정구 노포동 133",
+      "latitude": 35.283105,
+      "longitude": 129.094886
+    },
+    {
+      "officialId": "8",
+      "name": "노포 화물차고지",
+      "address": "부산 금정구 고분로 123",
+      "landAddress": "부산 금정구 고분로 123",
+      "latitude": 35.284074,
+      "longitude": 129.102629
+    },
+    {
+      "officialId": "9",
+      "name": "두산위브 뒤",
+      "address": "부산 해운대구 좌동 1474",
+      "landAddress": "부산 해운대구 좌동 1474",
+      "latitude": 35.167796,
+      "longitude": 129.175858
+    },
+    {
+      "officialId": "10",
+      "name": "대우1차아파트 앞",
+      "address": "부산 해운대구 좌동 1486-2",
+      "landAddress": "부산 해운대구 좌동 1486-2",
+      "latitude": 35.1676471,
+      "longitude": 129.1784924
+    },
+    {
+      "officialId": "11",
+      "name": "부산기계공고 후문",
+      "address": "부산 해운대구 해운대로 569",
+      "landAddress": "부산 해운대구 우동 471 일원",
+      "latitude": 35.1654,
+      "longitude": 129.1558
+    },
+    {
+      "officialId": "12",
+      "name": "해운대 센텀시티",
+      "address": "부산 해운대구 재송동 680-2 일원",
+      "landAddress": "부산 해운대구 재송동 680-2 일원",
+      "latitude": 35.17689394287876,
+      "longitude": 129.126635257237
+    },
+    {
+      "officialId": "13",
+      "name": "반여도서관 앞",
+      "address": "부산 해운대구 반여동 1575-24",
+      "landAddress": "부산 해운대구 반여동 1575-24",
+      "latitude": 35.202129,
+      "longitude": 129.133592
+    },
+    {
+      "officialId": "14",
+      "name": "동대신동",
+      "address": "부산 서구 서구 동대신동3가 258-212",
+      "landAddress": "부산 서구 서구 동대신동3가 258-212",
+      "latitude": 35.116641,
+      "longitude": 129.020013
+    },
+    {
+      "officialId": "15",
+      "name": "신선3동",
+      "address": "부산 영도구 신선동3가 112-255",
+      "landAddress": "부산 영도구 신선동3가 112-255",
+      "latitude": 35.080725,
+      "longitude": 129.046
+    },
+    {
+      "officialId": "16",
+      "name": "영선대로 지하 공영",
+      "address": "부산 영도구 영선동 1가 46-3",
+      "landAddress": "부산 영도구 영선동 1가 46-3",
+      "latitude": 35.09044,
+      "longitude": 129.0433
+    },
+    {
+      "officialId": "17",
+      "name": "동백사거리",
+      "address": "부산 해운대구 우1동 1437",
+      "landAddress": "부산 해운대구 우1동 1437",
+      "latitude": 35.1575767,
+      "longitude": 129.1516566
+    },
+    {
+      "officialId": "18",
+      "name": "중동이마트 옆",
+      "address": "부산 해운대구 중동 1768-3",
+      "landAddress": "부산 해운대구 중동 1768-3",
+      "latitude": 35.1653836,
+      "longitude": 129.1679889
+    },
+    {
+      "officialId": "19",
+      "name": "부산대역(남측)",
+      "address": "부산 금정구 장전온천천로 48",
+      "landAddress": "부산 금정구 부곡동 399",
+      "latitude": 35.228599,
+      "longitude": 129.089403
+    },
+    {
+      "officialId": "20",
+      "name": "부산대역(북측)",
+      "address": "부산 금정구 장전온천천로 48",
+      "landAddress": "부산 금정구 부곡동 441-27",
+      "latitude": 35.2296168581211,
+      "longitude": 129.089342280899
+    },
+    {
+      "officialId": "21",
+      "name": "화명역",
+      "address": "부산 북구 화명동 2253 일원",
+      "landAddress": "부산 북구 화명동 2253 일원",
+      "latitude": 35.23561,
+      "longitude": 129.0081
+    },
+    {
+      "officialId": "22",
+      "name": "학장천 복개",
+      "address": "부산 사상구 주례3동 1233-7",
+      "landAddress": "부산 사상구 주례3동 1233-7",
+      "latitude": 35.148601106306714,
+      "longitude": 129.00069961592231
+    },
+    {
+      "officialId": "23",
+      "name": "수변공원",
+      "address": "부산 수영구 민락수변로 95",
+      "landAddress": "부산 수영구",
+      "latitude": 35.15479546469448,
+      "longitude": 129.1315081751313
+    },
+    {
+      "officialId": "24",
+      "name": "중동역",
+      "address": "부산 해운대구 해운대로 731",
+      "landAddress": "부산 해운대구",
+      "latitude": 35.167077752598345,
+      "longitude": 129.17018583252286
+    },
+    {
+      "officialId": "25",
+      "name": "미포공영",
+      "address": "부산 해운대구 달맞이길 43",
+      "landAddress": "부산 해운대구",
+      "latitude": 35.161675,
+      "longitude": 129.170088
+    },
+    {
+      "officialId": "26",
+      "name": "온천장역(남측)",
+      "address": "부산 동래구 중앙대로 1520",
+      "landAddress": "부산 동래구",
+      "latitude": 35.218939,
+      "longitude": 129.0856117
+    },
+    {
+      "officialId": "27",
+      "name": "구서역",
+      "address": "부산 금정구 금정로233번길 46",
+      "landAddress": "부산 금정구",
+      "latitude": 35.245537,
+      "longitude": 129.09122
+    },
+    {
+      "officialId": "28",
+      "name": "중앙공원",
+      "address": "부산 서구 망양로193번길 187",
+      "landAddress": "부산 서구",
+      "latitude": 35.112963,
+      "longitude": 129.027834
+    },
+    {
+      "officialId": "29",
+      "name": "장전역",
+      "address": "부산 금정구 장전온천천로 144",
+      "landAddress": "부산 금정구",
+      "latitude": 35.239173,
+      "longitude": 129.088423
+    },
+    {
+      "officialId": "32",
+      "name": "남산역",
+      "address": "부산 금정구 중앙대로 2030",
+      "landAddress": "부산 금정구",
+      "latitude": 35.265464133763,
+      "longitude": 129.092735138325
+    },
+    {
+      "officialId": "33",
+      "name": "하단역",
+      "address": "부산 사하구 하신중앙로 313",
+      "landAddress": "부산 사하구",
+      "latitude": 35.1045991882712,
+      "longitude": 128.964449315172
+    },
+    {
+      "officialId": "34",
+      "name": "명륜역",
+      "address": "부산 동래구 온천천로 71",
+      "landAddress": "부산 동래구",
+      "latitude": 35.2128898639633,
+      "longitude": 129.08053716038
+    },
+    {
+      "officialId": "35",
+      "name": "동래역",
+      "address": "부산 동래구 명륜로129번다길 11-1",
+      "landAddress": "부산 동래구",
+      "latitude": 35.2057289334104,
+      "longitude": 129.079337500299
+    },
+    {
+      "officialId": "36",
+      "name": "해운대광장",
+      "address": "부산 해운대구 해운대해변로 264",
+      "landAddress": "부산 해운대구",
+      "latitude": 35.15942,
+      "longitude": 129.1602
+    },
+    {
+      "officialId": "37",
+      "name": "롯데 광복점 뒤(2)",
+      "address": "부산 중구 대교로 94",
+      "landAddress": "부산 중구",
+      "latitude": 35.098361,
+      "longitude": 129.038111
+    },
+    {
+      "officialId": "38",
+      "name": "미음 화물차고지",
+      "address": "부산 강서구 미음산단로 270",
+      "landAddress": "부산 강서구",
+      "latitude": 35.147873,
+      "longitude": 128.862065
+    },
+    {
+      "officialId": "39",
+      "name": "회동 화물차고지",
+      "address": "부산 금정구 개좌로 408",
+      "landAddress": "부산 금정구",
+      "latitude": 35.240641,
+      "longitude": 129.135953
+    },
+    {
+      "officialId": "40",
+      "name": "반여2배수지",
+      "address": "부산 해운대구 재반로212번길 60",
+      "landAddress": "부산 해운대구",
+      "latitude": 35.19465,
+      "longitude": 129.133211
+    },
+    {
+      "officialId": "41",
+      "name": "요트경기장 앞 1구역",
+      "address": "부산 해운대구 해운대해변로 43-1",
+      "landAddress": "부산 해운대구",
+      "latitude": 35.163499,
+      "longitude": 129.138627
+    },
+    {
+      "officialId": "42",
+      "name": "삼락천로",
+      "address": "부산 사상구 사상로 341-74",
+      "landAddress": "부산 사상구",
+      "latitude": 35.1752320116285,
+      "longitude": 128.983913759067
+    },
+    {
+      "officialId": "43",
+      "name": "부전복개도로1",
+      "address": "부산 부산진구 가야대로 743",
+      "landAddress": "부산 부산진구",
+      "latitude": 35.15478629870838,
+      "longitude": 129.0577916844046
+    },
+    {
+      "officialId": "44",
+      "name": "부전복개도로2",
+      "address": "부산 부산진구 가야대로 743",
+      "landAddress": "부산 부산진구",
+      "latitude": 35.15264892578125,
+      "longitude": 129.05780029296875
+    },
+    {
+      "officialId": "48",
+      "name": "대연고가밑",
+      "address": "부산 남구 동제당로 621-1",
+      "landAddress": "부산 남구",
+      "latitude": 35.12929966744028,
+      "longitude": 129.1053561494938
+    },
+    {
+      "officialId": "49",
+      "name": "골드테마거리",
+      "address": "부산 부산진구 범일로 134",
+      "landAddress": "부산 부산진구",
+      "latitude": 35.141515,
+      "longitude": 129.059751
+    },
+    {
+      "officialId": "50",
+      "name": "요트경기장 앞 2구역(대형)",
+      "address": "부산 해운대구 해운대해변로 43-1",
+      "landAddress": "부산 해운대구",
+      "latitude": 35.163281,
+      "longitude": 129.139141
+    },
+    {
+      "officialId": "251",
+      "name": "구포대교밑",
+      "address": "부산 북구 낙동북로 641-2",
+      "landAddress": "부산 북구",
+      "latitude": 35.2031305681658,
+      "longitude": 128.995985586865
+    },
+    {
+      "officialId": "268",
+      "name": "주례역주변복개",
+      "address": "부산 사상구 가야대로 309",
+      "landAddress": "부산 사상구",
+      "latitude": 35.1510338272788,
+      "longitude": 129.006436005759
+    },
+    {
+      "officialId": "432",
+      "name": "수안동주차빌딩",
+      "address": "부산 동래구 충렬대로 218",
+      "landAddress": "부산 동래구",
+      "latitude": 35.201164066959905,
+      "longitude": 129.08352151653173
+    },
+    {
+      "officialId": "433",
+      "name": "구남역",
+      "address": "부산 북구 백양대로1016번길 11",
+      "landAddress": "부산 북구",
+      "latitude": 35.1963608937108,
+      "longitude": 128.995750857953
+    },
+    {
+      "officialId": "434",
+      "name": "만덕2동사앞복개",
+      "address": "부산 북구 만덕2로 25",
+      "landAddress": "부산 북구",
+      "latitude": 35.2110968089313,
+      "longitude": 129.038016227996
+    }
+  ]
+}

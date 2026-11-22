@@ -3,7 +3,8 @@
 부산 공영주차장을 목적지·주차 시간·예산으로 추천하는 모바일 앱의 프로토타입입니다.
 요구사항은 `docs/SRS.txt`, `docs/SDD.txt`, `docs/개발계획서.txt`를 따릅니다.
 
-> ⚠️ **모든 주차장·목적지·실시간 데이터는 가상(Mock) 데이터입니다.** 실제 주차장 이름·위치·요금·면수와 다릅니다.
+> 외부 연동 설정이 없으면 가상(Mock) 데이터를 사용합니다. `PARKING_REALTIME_URL`과 Supabase 키가 설정되면 실제 주차장·잔여 면수를 사용하며, 카카오 키가 있으면 실제 목적지를 검색합니다.
+> 실시간 원본에 없는 요금·운영시간은 추정하지 않습니다. 예산 조건이 있으면 요금 미제공 주차장은 ‘요금 확인 필요’ 목록에 표시됩니다.
 > AI도 기본값은 정규식 규칙으로 동작하는 Mock이며, 실제 LLM이 아닙니다.
 
 ## 실행 방법
@@ -130,5 +131,24 @@ mobile/   Expo(SDK 58) + Expo Router + TypeScript
 - 실제 데이터 적재 스크립트(COMP-12)
 - 예약·결제
 - APK 빌드, 서버·앱 배포
-- 실시간 조회 TTL 30초 캐시(코드에 `ponytail:` 주석으로 표시)
-- 실제 외부 API 연동 검증(Supabase·부산시설공단·카카오·OpenAI 코드는 미검증)
+- Supabase DB 직접 조회·부산 별도 Live API·OpenAI의 실제 외부 연동 검증
+
+## main UI와 test 기능 통합
+
+`mobile`의 화면·탭·테마·지도 구성은 `main`과 동일하게 유지합니다. 기존 `test`의 실시간 주차 API와 공식 좌표 데이터를 새 UI의 추천·상세·추천 이유 API에 연결했습니다.
+
+- `npm run dev:app`: 기본 `mobile` 웹 앱, http://localhost:8081
+- `npm run dev:legacy-app`: 기존 `app` (별도 Expo 포트로 실행)
+- `npm run dev:server`: 공용 API 서버, http://localhost:3000
+- `npm test`, `npm run test:search`, `npm run typecheck`: 자동 검증
+- `npm run test:api`: 실행 중인 서버의 기존 주차 API 점검
+
+기본 `mobile` API는 Supabase UUID 주차장 Provider와 `BUSAN_LIVE_API_URL` 기반 부산시설공단 Live Provider를 유지합니다. `PARKING_REALTIME_URL`과 `SUPABASE_PUBLISHABLE_KEY`는 legacy `/api/parking` 및 직접 부산시설공단 설정이 없을 때의 선택적 Live Provider에 사용됩니다. 시설공단 코드는 `liveSourceId`로만 사용하고 내부 `ParkingLot.id`를 대체하지 않습니다. 원격 오류를 Mock 데이터로 바꾸지 않습니다.
+
+카카오 REST 키는 `server/.env.local`의 `KAKAO_REST_API_KEY`, 웹 지도용 JavaScript 키는 `mobile/.env`의 `EXPO_PUBLIC_KAKAO_JS_KEY`에 설정합니다. 실제 키가 든 환경 파일은 Git에서 제외됩니다.
+
+실시간 응답은 최대 30초 동안 공유하며, 원천의 한국 시각을 ISO UTC로 변환해 5분 이상 지난 정보를 오래된 상태로 표시합니다. 공식 위치 목록과 이름이 유일하게 일치할 때만 좌표를 보완합니다. 좌표가 없으면 상세 조회는 지원하지만 거리 추천·지도 마커에서는 제외합니다.
+
+2026-11-22 실제 점검: Supabase 48곳 수신, 면수 형식과 갱신 시각 확인, 공식 좌표 47곳 연결(‘예비’ 1곳 좌표 없음). 수신 개수와 면수는 이후 원천 데이터에 따라 달라질 수 있습니다.
+
+기존 앱 안내는 [로컬 개발 안내](docs/local-development.md), [기존 구조](docs/architecture.md)를 참고하세요.
