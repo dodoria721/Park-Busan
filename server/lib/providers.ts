@@ -86,16 +86,61 @@ export const providerNames = {
 export const LIVE_WARNING = '실시간 주차 정보를 불러오지 못했습니다. 주차 가능 여부는 확인 불가로 표시하며, 기본 정보와 요금은 그대로 제공합니다.';
 
 /**
- * 실시간 조회(제한 시간 1.5초). 실패하면 null을 돌려 "확인 불가" + 경고로 처리한다(FR-017).
- * ponytail: 계획서의 TTL 30초 캐시는 생략. 실제 API 호출량이 문제 되면 id별 Map 캐시를 추가.
+ * Supabase UUID와 부산시설공단 코드를 연결한 실시간 조회.
+ * 외부 API 응답은 시설공단 코드 기준으로 받은 뒤 UUID 기준으로 변환한다.
  */
-export async function fetchLive(lots: ParkingLot[]): Promise<Record<string, LiveStatus> | null> {
-  const ids = lots.filter((l) => l.liveSupported).map((l) => l.id);
-  if (ids.length === 0) return {};
+export async function fetchLive(
+  lots: ParkingLot[]
+): Promise<Record<string, LiveStatus> | null> {
+  const supportedLots = lots.filter(
+    (lot) => lot.liveSupported
+  );
+
+  if (supportedLots.length === 0) return {};
+
   try {
-    return await withTimeout(live.getStatus(ids), 1500);
-  } catch (e) {
-    logError('live', e);
+    // 기존 Mock Provider 동작 유지
+    if (live === mockLive) {
+      return await withTimeout(
+        live.getStatus(supportedLots.map((lot) => lot.id)),
+        1500
+      );
+    }
+
+    // 실제 부산시설공단 API 연동
+    const mappedLots = supportedLots.filter(
+      (
+        lot
+      ): lot is ParkingLot & { liveSourceId: string } =>
+        typeof lot.liveSourceId === 'string' &&
+        lot.liveSourceId.length > 0
+    );
+
+    if (mappedLots.length === 0) return {};
+
+    const facilityCodes = [
+      ...new Set(mappedLots.map((lot) => lot.liveSourceId)),
+    ];
+
+    const statusByCode = await withTimeout(
+      live.getStatus(facilityCodes),
+      1500
+    );
+
+    const result: Record<string, LiveStatus> = {};
+
+    for (const lot of mappedLots) {
+      const status = statusByCode[lot.liveSourceId];
+
+      if (status) {
+        result[lot.id] = status;
+      }
+    }
+
+    return result;
+  } catch (error) {
+    logError('live', error);
     return null;
   }
 }
+

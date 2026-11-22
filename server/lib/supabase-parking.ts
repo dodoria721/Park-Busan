@@ -16,6 +16,7 @@ export interface SupabaseFeePolicyRow {
 
 export interface SupabaseSourceMappingRow {
   source_name: string;
+  source_record_id?: string | null;
   last_seen_at: string | null;
 }
 
@@ -48,7 +49,7 @@ const PARKING_SELECT = [
   'live_status',
   'live_updated_at',
   'fee_policies(id,base_minutes,base_fee_won,additional_minutes,additional_fee_won,daily_max_fee_won,notes,effective_from,effective_to,created_at)',
-  'source_mappings(source_name,last_seen_at)',
+  'source_mappings(source_name,source_record_id,last_seen_at)',
 ].join(',');
 
 export class SupabaseParkingError extends Error {
@@ -104,11 +105,33 @@ function sourceName(rows: SupabaseSourceMappingRow[] | null): string {
   return [...rows].sort((a, b) => (b.last_seen_at ?? '').localeCompare(a.last_seen_at ?? ''))[0]?.source_name || '정보 없음';
 }
 
+const BUSAN_LIVE_SOURCE = 'busan_facilities_live';
+
+function busanLiveCode(
+  rows: SupabaseSourceMappingRow[] | null
+): string | null {
+  if (!Array.isArray(rows)) return null;
+
+  const codes = new Set(
+    rows
+      .filter(
+        (row) =>
+          row.source_name === BUSAN_LIVE_SOURCE &&
+          typeof row.source_record_id === 'string' &&
+          /^A\d+$/.test(row.source_record_id)
+      )
+      .map((row) => row.source_record_id as string)
+  );
+
+  // 매핑이 없거나 서로 다른 코드가 중복 등록되면 사용하지 않음
+  return codes.size === 1 ? [...codes][0] : null;
+}
+
 export function mapSupabaseParkingLot(row: SupabaseParkingLotRow, asOf = new Date()): ParkingLot {
   if (!row || typeof row.id !== 'string' || typeof row.name !== 'string') {
     throw new SupabaseParkingError('Supabase parking row has an invalid required field', 502, 'INVALID_ROW');
   }
-  const liveStatus = typeof row.live_status === 'string' ? row.live_status : 'unknown';
+  const liveSourceId = busanLiveCode(row.source_mappings);
   return {
     id: row.id,
     name: row.name,
@@ -118,7 +141,8 @@ export function mapSupabaseParkingLot(row: SupabaseParkingLotRow, asOf = new Dat
     operatingHours: typeof row.operating_hours === 'string' ? row.operating_hours : null,
     capacity: nullableNumber(row.total_spaces),
     fee: mapFeePolicy(activeFeePolicy(row.fee_policies, asOf)),
-    liveSupported: liveStatus !== 'unknown' || typeof row.live_updated_at === 'string',
+    liveSupported: liveSourceId !== null,
+    ...(liveSourceId ? { liveSourceId } : {}),
     source: sourceName(row.source_mappings),
   };
 }

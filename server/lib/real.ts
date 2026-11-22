@@ -15,20 +15,134 @@ async function getJson(url: string, init?: RequestInit): Promise<unknown> {
  * 미검증: 부산시설공단 실시간 주차 API. 응답 구조와 외부 ID 매핑(source_mappings)은 확인 전이다.
  * 여기서는 items[]에 { id, available, total, updatedAt }가 온다고 가정한다.
  */
+
+/** 부산시설공단 실시간 주차정보 API 응답 */
+interface BusanLiveItem {
+  parkgcd: string;
+  parknm: string;
+  curravacnt: number | string | null;
+  maxcnt: number | string | null;
+  parkingcnt?: number | string | null;
+  lastupdatetime: string | null;
+}
+
+interface BusanLiveResponse {
+  response?: {
+    header?: {
+      resultCode?: string;
+      resultMsg?: string;
+    };
+    body?: {
+      items?: {
+        item?: BusanLiveItem[];
+      };
+      totalCount?: string | number;
+    };
+  };
+}
+
+function parseParkingCount(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+
+  const count = Number(value);
+
+  return Number.isInteger(count) && count >= 0
+    ? count
+    : null;
+}
+
+function parseBusanUpdatedAt(value: string | null): string | null {
+  if (!value) return null;
+
+  // API 시간은 한국 현지 시각(KST)으로 해석
+  const normalized = value.trim().replace(' ', 'T');
+
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(normalized)) {
+    return null;
+  }
+
+  const date = new Date(`${normalized}+09:00`);
+
+  return Number.isNaN(date.getTime())
+    ? null
+    : date.toISOString();
+}
+
+/**
+ * 부산시설공단 실시간 주차현황 제공자.
+ *
+ * 주의:
+ * 이 단계에서 ids는 시설공단 코드(A01, A35 등)여야 한다.
+ * Supabase UUID 변환은 source_mappings 연동 단계에서 구현한다.
+ */
 export function publicLive(url: string, key: string): LiveProvider {
   return {
     async getStatus(ids) {
-      const data = (await getJson(`${url}?serviceKey=${encodeURIComponent(key)}&resultType=json`)) as {
-        items?: { id: string; available: number | null; total: number | null; updatedAt: string | null }[];
-      };
-      const out: Record<string, LiveStatus> = {};
-      for (const it of data.items ?? []) {
-        if (ids.includes(it.id)) out[it.id] = { available: it.available, total: it.total, updatedAt: it.updatedAt };
+      if (ids.length === 0) return {};
+
+      const requestUrl = new URL(url);
+
+      requestUrl.searchParams.set('serviceKey', key);
+      requestUrl.searchParams.set('resultType', 'json');
+      requestUrl.searchParams.set('pageNo', '1');
+      requestUrl.searchParams.set('numOfRows', '100');
+
+      const data = (await getJson(
+        requestUrl.toString()
+      )) as BusanLiveResponse;
+
+      const response = data.response;
+
+      if (response?.header?.resultCode !== '00') {
+        throw new Error(
+          `부산시설공단 API 오류: ${
+            response?.header?.resultMsg ?? '응답 확인 필요'
+          }`
+        );
       }
-      return out;
+
+      const items = response.body?.items?.item;
+      const totalCount = Number(response.body?.totalCount ?? 0);
+
+      if (!Array.isArray(items)) {
+        if (totalCount === 0) return {};
+        throw new Error('부산시설공단 API 응답 구조가 올바르지 않습니다.');
+      }
+
+      if (totalCount > items.length) {
+        throw new Error(
+          '부산시설공단 API 응답에 일부 페이지가 누락되었습니다.'
+        );
+      }
+
+      const requestedIds = new Set(ids);
+      const result: Record<string, LiveStatus> = {};
+
+      for (const item of items) {
+        if (!requestedIds.has(item.parkgcd)) continue;
+
+        const available = parseParkingCount(item.curravacnt);
+        const total = parseParkingCount(item.maxcnt);
+
+        result[item.parkgcd] = {
+          available:
+            available !== null &&
+            total !== null &&
+            available > total
+              ? null
+              : available,
+          total,
+          updatedAt: parseBusanUpdatedAt(item.lastupdatetime),
+        };
+      }
+
+      return result;
     },
   };
 }
+
 
 /** 미검증: 카카오 로컬 키워드 검색. rect로 부산 대략 범위만 검색한다. */
 export function kakaoGeo(key: string): GeoProvider {

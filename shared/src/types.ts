@@ -27,6 +27,7 @@ export interface ParkingLot {
   /** 실시간 면수를 제공하는 주차장인지 */
   liveSupported: boolean;
   source: string;
+  liveSourceId?: string;
 }
 
 /** 실시간 제공기관 응답. updatedAt은 기관 갱신 시각(ISO), 없으면 null. */
