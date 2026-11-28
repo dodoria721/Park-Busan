@@ -11,6 +11,7 @@ import { Button, Card, Chip, Mascot, Notice, PlacePicker, s } from '../ui';
 import { color, font, shadow } from '../theme';
 import ResultMap from '../components/ResultMap';
 import LotCard from '../components/LotCard';
+import { resultGroups } from '../result-groups';
 
 const LABEL: Record<keyof SearchConditions, string> = { destination: '목적지', durationMinutes: '주차 시간', budget: '예산' };
 const back = () => (router.canGoBack() ? router.back() : router.replace('/'));
@@ -110,7 +111,8 @@ export default function Results() {
   const list = showAll ? result.all : result.top;
   const mapItems = [...result.all, ...result.needsCheck];
   const sel = mapItems.find((c) => c.lot.id === selected);
-  const empty = result.all.length === 0;
+  const { liveNeedsCheck, otherNeedsCheck, total, liveCount } = resultGroups(result);
+  const empty = total === 0;
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
@@ -142,7 +144,10 @@ export default function Results() {
           <Card style={st.found}>
             <Mascot pose="found" height={52} />
             <View style={{ flex: 1 }}>
-              <Text style={[font.body15, { fontWeight: '700', color: color.navy }]}>조건에 맞는 {result.all.length}곳을 찾았어요!</Text>
+              <Text style={[font.body15, { fontWeight: '700', color: color.navy }]}>주변 주차장 {total}곳 · 실시간 제공 {liveCount}곳</Text>
+              <Text style={s.sub}>
+                추천 후보 {result.all.length}곳 · 요금 확인 필요 {result.needsCheck.length}곳
+              </Text>
               <Text style={s.sub}>
                 만차 {result.excluded.full}곳 · 예산 초과 {result.excluded.overBudget}곳 제외
               </Text>
@@ -152,6 +157,14 @@ export default function Results() {
 
         {view === 'list' ? (
           <>
+            {liveNeedsCheck.length > 0 && (
+              <View style={{ gap: 10 }}>
+                <Text style={s.h2}>실시간 제공 · 요금 확인 필요 ({liveNeedsCheck.length})</Text>
+                <Text style={s.sub}>실시간 정보를 제공하는 주차장입니다. 요금 정보가 없어 예산 충족 여부는 방문 전 확인해 주세요.</Text>
+                {liveNeedsCheck.map((c) => <LotCard key={c.lot.id} c={c} feeLabel={feeLabel} />)}
+              </View>
+            )}
+            {liveNeedsCheck.length > 0 && list.length > 0 && <Text style={s.h2}>예산 조건에 맞는 추천</Text>}
             {list.map((c, i) => (
               <LotCard key={c.lot.id} c={c} rank={i + 1} feeLabel={feeLabel} reason={i === 0 ? currentReason : undefined} />
             ))}
@@ -162,11 +175,11 @@ export default function Results() {
                 onPress={() => setShowAll(!showAll)}
               />
             )}
-            {result.needsCheck.length > 0 && (
+            {otherNeedsCheck.length > 0 && (
               <View style={{ gap: 10, marginTop: 6 }}>
-                <Text style={s.h2}>요금 확인 필요 ({result.needsCheck.length})</Text>
+                <Text style={s.h2}>요금 확인 필요 ({otherNeedsCheck.length})</Text>
                 <Text style={s.sub}>요금 정보가 부족해 예산 충족 여부를 알 수 없는 주차장입니다.</Text>
-                {result.needsCheck.map((c) => (
+                {otherNeedsCheck.map((c) => (
                   <LotCard key={c.lot.id} c={c} feeLabel={feeLabel} />
                 ))}
               </View>

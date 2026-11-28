@@ -13,6 +13,7 @@ import {
 const fixture: SupabaseParkingLotRow = {
   id: '00000000-0000-0000-0000-000000000001',
   external_id: 'busan-1',
+  is_public: true,
   name: '부산 공영주차장',
   address: '부산광역시 부산진구',
   latitude: 35.1578,
@@ -114,6 +115,20 @@ test('시설공단 코드가 없거나 충돌하면 실시간 지원을 임의�
   assert.equal(ambiguous.liveSupported, false);
 });
 
+test('민영주차장에 잘못 연결된 공영시설 실시간 정보는 노출하지 않음', async () => {
+  const privateRow = {
+    ...fixture, is_public: false, total_spaces: 13,
+    source_mappings: [{ source_name: 'busan_facilities_live', source_record_id: 'A24', last_seen_at: null }],
+  };
+  const provider = supabaseParking('https://project.supabase.co', 'test', async input => {
+    assert.ok(new URL(String(input)).searchParams.get('select')?.split(',').includes('is_public'));
+    return Response.json([privateRow]);
+  });
+  const lot = await provider.getLot(fixture.id);
+  assert.equal(lot?.liveSupported, false);
+  assert.equal(lot?.liveSourceId, undefined);
+});
+
 test('빈 Supabase 결과는 빈 목록과 null 상세로 처리', async () => {
   const seen: { authorization: string | null; apikey: string | null; url: string }[] = [];
   const fetcher = async (input: string | URL | Request, init?: RequestInit) => {
@@ -134,6 +149,7 @@ test('다음 Supabase 페이지의 민영주차장도 기존 추천 및 요금 �
     ...fixture,
     id: '00000000-0000-0000-0000-000000000002',
     external_id: 'busan-private-csv:141-4-000073',
+    is_public: false,
     name: '화인종합주차장',
     fee_policies: [],
     source_mappings: [{ source_name: '부산 민영주차장 CSV', last_seen_at: null }],

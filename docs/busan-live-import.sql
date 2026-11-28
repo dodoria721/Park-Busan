@@ -1,3 +1,4 @@
+-- Reviewed links with capacity/ownership conflicts are excluded; see repair-busan-live-mappings.sql.
 -- 부산시설공단 실시간 주차장 연결. 생성: scripts/import-busan-live-lots.py
 -- Supabase SQL Editor에서 실행한다. 이미 연결된 코드는 다시 넣지 않는다.
 BEGIN;
@@ -9,7 +10,29 @@ SELECT * FROM jsonb_to_recordset('[{"code": "A01", "external_id": "busan-facilit
   lng double precision, spaces integer, payload jsonb
 );
 CREATE TEMP TABLE live_link ON COMMIT DROP AS
-SELECT * FROM jsonb_to_recordset('[{"code": "A02", "name": "삼락재첩거리", "lot_id": "33b5dadc-3c59-5ba1-a17e-9954bd9be99e", "lot_name": "삼락재첩거리주변", "distance": 68, "payload": {"parkgcd": "A02", "parknm": "삼락재첩거리", "maxcnt": 126, "kakao": {"id": "25920691", "place_name": "삼락재첩거리 공영주차장", "address": "부산 사상구 낙동대로1518번길 26"}}}, {"code": "A23", "name": "수변공원", "lot_id": "0097dc2a-c446-5935-9f0d-38d7fcc4a1aa", "lot_name": "민락수변공원 공영주차장", "distance": 93, "payload": {"parkgcd": "A23", "parknm": "수변공원", "maxcnt": 102, "kakao": {"id": "20590061", "place_name": "민락수변공원 공영주차장", "address": "부산 수영구 광안해변로344번길 19"}}}, {"code": "A24", "name": "중동역", "lot_id": "4eac79e1-c56a-422a-9f6a-426d511c4001", "lot_name": "중동주차장", "distance": 134, "payload": {"parkgcd": "A24", "parknm": "중동역", "maxcnt": 167, "kakao": {"id": "11528880", "place_name": "중동역공영주차장", "address": "부산 해운대구 해운대로 731"}}}, {"code": "A25", "name": "미포공영", "lot_id": "a3e558d8-79e1-4b0f-a427-3ffde3803792", "lot_name": "미포주차장", "distance": 109, "payload": {"parkgcd": "A25", "parknm": "미포공영", "maxcnt": 97, "kakao": {"id": "11521129", "place_name": "미포공영주차장", "address": "부산 해운대구 중동 1778-2"}}}]'::jsonb) AS t(code text, lot_id uuid, payload jsonb);
+SELECT * FROM jsonb_to_recordset('[]'::jsonb) AS t(code text, lot_id uuid, payload jsonb);
+
+DO $guard$ BEGIN
+  IF EXISTS (SELECT 1 FROM live_insert i JOIN public.parking_lots l USING (external_id)
+             WHERE l.is_public IS NOT TRUE) THEN
+    RAISE EXCEPTION 'Existing external ID belongs to a private facility';
+  END IF;
+  IF EXISTS (SELECT 1 FROM live_link k LEFT JOIN public.parking_lots l ON l.id = k.lot_id
+             WHERE l.id IS NULL OR l.is_public IS NOT TRUE) THEN
+    RAISE EXCEPTION 'Live feeds can only be linked to existing public facilities';
+  END IF;
+  IF EXISTS (SELECT 1 FROM live_link k JOIN public.source_mappings m ON m.parking_lot_id = k.lot_id
+             WHERE m.source_name = 'busan_facilities_live' AND m.source_record_id <> k.code) THEN
+    RAISE EXCEPTION 'Conflicting live facility code';
+  END IF;
+  IF EXISTS (SELECT 1 FROM live_link k JOIN public.source_mappings m ON m.source_record_id = k.code
+             WHERE m.source_name = 'busan_facilities_live' AND m.parking_lot_id <> k.lot_id) THEN
+    RAISE EXCEPTION 'Live code already belongs to another facility';
+  END IF;
+  IF EXISTS (SELECT lot_id FROM live_link GROUP BY lot_id HAVING count(DISTINCT code) > 1) THEN
+    RAISE EXCEPTION 'Multiple live codes for one facility';
+  END IF;
+END $guard$;
 
 WITH run AS (
   INSERT INTO public.import_runs (source_name, status, finished_at, records_read, records_written)
@@ -25,6 +48,9 @@ WITH run AS (
   RETURNING id, external_id
 ), targets AS (
   SELECT i.code, ins.id AS lot_id, i.payload FROM inserted ins JOIN live_insert i USING (external_id)
+  UNION ALL
+  SELECT i.code, l.id, i.payload FROM live_insert i JOIN public.parking_lots l USING (external_id)
+  WHERE l.is_public IS TRUE AND NOT EXISTS (SELECT 1 FROM inserted ins WHERE ins.external_id = i.external_id)
   UNION ALL
   SELECT k.code, k.lot_id, k.payload FROM live_link k
 )

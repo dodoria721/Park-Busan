@@ -23,6 +23,7 @@ export interface SupabaseSourceMappingRow {
 export interface SupabaseParkingLotRow {
   id: string;
   external_id: string | null;
+  is_public: boolean;
   name: string;
   address: string | null;
   latitude: number | null;
@@ -40,6 +41,7 @@ type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<
 const PARKING_SELECT = [
   'id',
   'external_id',
+  'is_public',
   'name',
   'address',
   'latitude',
@@ -131,7 +133,9 @@ export function mapSupabaseParkingLot(row: SupabaseParkingLotRow, asOf = new Dat
   if (!row || typeof row.id !== 'string' || typeof row.name !== 'string') {
     throw new SupabaseParkingError('Supabase parking row has an invalid required field', 502, 'INVALID_ROW');
   }
-  const liveSourceId = busanLiveCode(row.source_mappings);
+  // A public facility feed must never be attached to a private parking lot,
+  // even if an earlier import wrote an incorrect source mapping.
+  const liveSourceId = row.is_public === true ? busanLiveCode(row.source_mappings) : null;
   return {
     id: row.id,
     name: row.name,
