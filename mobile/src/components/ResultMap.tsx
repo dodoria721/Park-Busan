@@ -2,13 +2,13 @@
 import MapView, { Marker } from 'react-native-maps';
 import type { MapProps } from './map-props';
 
-export default function ResultMap({ dest, items, onSelect }: MapProps) {
+export default function ResultMap({ dest, items, onSelect, height = 360, destinationLabel }: MapProps) {
   return (
     <MapView
-      style={{ height: 360, borderRadius: 20 }}
-      initialRegion={{ latitude: dest.lat, longitude: dest.lng, latitudeDelta: 0.04, longitudeDelta: 0.04 }}
+      style={{ height, borderRadius: 20 }}
+      initialRegion={{ latitude: dest.lat, longitude: dest.lng, latitudeDelta: items.length ? 0.04 : 0.006, longitudeDelta: items.length ? 0.04 : 0.006 }}
     >
-      <Marker coordinate={{ latitude: dest.lat, longitude: dest.lng }} title={`목적지: ${dest.name}`} pinColor="navy" />
+      <Marker coordinate={{ latitude: dest.lat, longitude: dest.lng }} title={destinationLabel ?? `목적지: ${dest.name}`} pinColor="navy" />
       {items.map((c) =>
         c.lot.lat == null || c.lot.lng == null ? null : (
           <Marker

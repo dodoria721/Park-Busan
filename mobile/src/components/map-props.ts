@@ -5,4 +5,6 @@ export interface MapProps {
   items: Candidate[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  height?: number;
+  destinationLabel?: string;
 }

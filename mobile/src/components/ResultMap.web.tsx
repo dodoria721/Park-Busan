@@ -33,7 +33,7 @@ const pin = (label: string, bg: string, size: number) =>
   `<div style="min-width:${size}px;height:${size}px;padding:0 ${label.length > 2 ? 10 : 0}px;border-radius:999px;background:${bg};border:2px solid #fff;` +
   `box-shadow:0 2px 6px rgba(23,43,94,.3);color:#fff;font:700 12px system-ui;display:flex;align-items:center;justify-content:center;cursor:pointer;white-space:nowrap">${label}</div>`;
 
-function KakaoMap({ dest, items, selectedId, onSelect, onFail }: MapProps & { onFail: () => void }) {
+function KakaoMap({ dest, items, selectedId, onSelect, onFail, height = 360, destinationLabel }: MapProps & { onFail: () => void }) {
   const box = useRef<any>(null);
   const map = useRef<any>(null);
   const overlays = useRef<any[]>([]);
@@ -57,23 +57,30 @@ function KakaoMap({ dest, items, selectedId, onSelect, onFail }: MapProps & { on
           overlays.current.push(o);
           bounds.extend(new m.LatLng(lat, lng));
         };
-        add(dest.lat, dest.lng, pin(dest.name, color.navy, 30), 1);
+        const label = destinationLabel ?? dest.name;
+        const safeLabel = label.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
+        add(dest.lat, dest.lng, pin(safeLabel, color.navy, 30), 1);
         items.forEach((c, i) => {
           if (c.lot.lat == null || c.lot.lng == null) return;
           const on = c.lot.id === selectedId;
           add(c.lot.lat, c.lot.lng, pin(String(i + 1), on ? color.primary700 : color.primary, on ? 34 : 28), on ? 4 : 2, () => onSelect(c.lot.id));
         });
-        if (!selectedId) map.current.setBounds(bounds);
+        if (!selectedId) {
+          if (items.length === 0) {
+            map.current.setCenter(new m.LatLng(dest.lat, dest.lng));
+            map.current.setLevel(3);
+          } else map.current.setBounds(bounds);
+        }
       })
       .catch(() => alive && onFail());
     return () => {
       alive = false;
     };
-  }, [dest, items, onFail, onSelect, selectedId]);
+  }, [dest, destinationLabel, items, onFail, onSelect, selectedId]);
 
   return (
     <View style={{ gap: 8 }}>
-      <View ref={box} style={{ height: 360, borderRadius: 20, overflow: 'hidden', borderWidth: 1.5, borderColor: color.primary100 }} />
+      <View ref={box} style={{ height, borderRadius: 20, overflow: 'hidden', borderWidth: 1.5, borderColor: color.primary100 }} />
       <Text style={s.sub}>지도 데이터 © Kakao</Text>
     </View>
   );
@@ -87,7 +94,7 @@ export default function ResultMap(props: MapProps) {
 }
 
 // 키가 없을 때: 실제 지도 대신 목적지 기준 상대 위치를 점으로 그린다.
-function Preview({ dest, items, selectedId, onSelect, note }: MapProps & { note?: string }) {
+function Preview({ dest, items, selectedId, onSelect, note, height = 360, destinationLabel }: MapProps & { note?: string }) {
   const pts = items.filter((c) => c.lot.lat != null && c.lot.lng != null);
   const lats = [dest.lat, ...pts.map((c) => c.lot.lat!)];
   const lngs = [dest.lng, ...pts.map((c) => c.lot.lng!)];
@@ -101,10 +108,10 @@ function Preview({ dest, items, selectedId, onSelect, note }: MapProps & { note?
 
   return (
     <View style={{ gap: 8 }}>
-      <View style={{ height: 360, borderWidth: 1.5, borderColor: color.primary100, borderRadius: 20, backgroundColor: '#EEF1EA', overflow: 'hidden' }}>
+      <View style={{ height, borderWidth: 1.5, borderColor: color.primary100, borderRadius: 20, backgroundColor: '#EEF1EA', overflow: 'hidden' }}>
         <View style={{ position: 'absolute', ...pos(dest.lat, dest.lng), transform: [{ translateX: -18 }, { translateY: -14 }] }}>
           <View style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: color.navy }}>
-            <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>목적지</Text>
+            <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>{destinationLabel ?? '목적지'}</Text>
           </View>
         </View>
         {pts.map((c, i) => {

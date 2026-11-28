@@ -19,6 +19,7 @@ import { session } from '../../session';
 import { useAutoRefresh } from '../../use-auto-refresh';
 import { Badge, Button, Card, Mascot, Notice, liveBadge, s } from '../../ui';
 import { color, font, radius } from '../../theme';
+import LotLocation from '../../components/LotLocation';
 
 function feeRows(f: FeePolicy | null): [string, string][] {
   if (!f) return [['요금 정책', NO_INFO]];
@@ -141,6 +142,7 @@ export default function LotDetail() {
             <Badge tone={badge.tone} label={badge.label} />
           </View>
           <Text style={s.sub}>{lot.address ?? `주소 ${NO_INFO}`}</Text>
+          <LotLocation lot={lot} />
           <View style={s.wrap}>
             {[lot.capacity == null ? null : `총 ${lot.capacity}면`, data.distanceM == null ? null : `목적지 ${formatDistance(data.distanceM)}`]
               .filter(Boolean)
