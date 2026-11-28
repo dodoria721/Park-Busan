@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mockParking } from './mock-data.ts';
+import { createRecommendHandler } from './parking-handlers.ts';
 import { selectParkingProvider } from './providers.ts';
 import {
   mapSupabaseParkingLot,
@@ -126,6 +127,47 @@ test('빈 Supabase 결과는 빈 목록과 null 상세로 처리', async () => {
   assert.equal(seen[0]?.apikey, 'sb_secret_test');
   assert.equal(seen[0]?.authorization, null);
   assert.match(seen[0]?.url ?? '', /fee_policies/);
+});
+
+test('다음 Supabase 페이지의 민영주차장도 기존 추천 및 요금 확인 목록에 포함', async () => {
+  const privateLot = {
+    ...fixture,
+    id: '00000000-0000-0000-0000-000000000002',
+    external_id: 'busan-private-csv:141-4-000073',
+    name: '화인종합주차장',
+    fee_policies: [],
+    source_mappings: [{ source_name: '부산 민영주차장 CSV', last_seen_at: null }],
+  };
+  const provider = supabaseParking('https://project.supabase.co', 'sb_secret_test', async (input) => {
+    const params = new URL(String(input)).searchParams;
+    assert.equal(params.get('order'), 'name.asc,id.asc');
+    switch (params.get('offset')) {
+      case '0': return Response.json([fixture]);
+      case '1': return Response.json([privateLot]);
+      case '2': return Response.json([]);
+      default: assert.fail('Unexpected page offset');
+    }
+  });
+  const recommend = createRecommendHandler(provider, async () => ({}));
+  const search = async (budget: number | null) => {
+    const response = await recommend(new Request('http://localhost/api/recommend', {
+      method: 'POST',
+      body: JSON.stringify({
+        destination: { lat: fixture.latitude, lng: fixture.longitude },
+        durationMinutes: 30,
+        budget,
+      }),
+    }));
+    assert.equal(response.status, 200);
+    return response.json();
+  };
+  const unrestricted = await search(null);
+  assert.deepEqual(unrestricted.all.map((candidate: { lot: { id: string } }) => candidate.lot.id), [fixture.id, privateLot.id]);
+  assert.equal(unrestricted.all[1].live.state, 'unsupported');
+  assert.equal(unrestricted.all[1].fee.status, 'unknown');
+  const budgeted = await search(5000);
+  assert.equal(budgeted.all[0].lot.id, fixture.id);
+  assert.equal(budgeted.needsCheck[0].lot.id, privateLot.id);
 });
 
 test('잘못된 Secret Key 오류를 전달하고 Mock으로 전환하지 않음', async () => {
